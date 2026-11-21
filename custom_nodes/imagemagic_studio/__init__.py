@@ -6,6 +6,7 @@ import time
 import uuid
 from functools import lru_cache
 from pathlib import Path
+from typing import NamedTuple
 
 from aiohttp import ClientSession, web
 from PIL import Image
@@ -15,11 +16,27 @@ from server import PromptServer
 NODE_CLASS_MAPPINGS = {}
 ROOT = Path(__file__).parent
 OUTPUT = Path(folder_paths.get_output_directory()) / "ImageMagic"
+
+
+class Model(NamedTuple):
+    label: str
+    checkpoint: str
+    encoder: str = "qwen_3_4b.safetensors"
+
+
 MODELS = {
-    "fp8": ("Klein 4B · FP8", "flux-2-klein-4b-fp8.safetensors"),
-    "nvfp4": ("Klein 4B · Compact", "flux-2-klein-4b-nvfp4.safetensors"),
-    "base": ("Klein 4B Base · FP8", "flux-2-klein-base-4b-fp8.safetensors"),
+    "fp8": Model("Klein 4B · FP8", "flux-2-klein-4b-fp8.safetensors"),
+    "9b-fp8": Model("Klein 9B · FP8", "flux-2-klein-9b-fp8.safetensors", "qwen_3_8b_fp8mixed.safetensors"),
+    "nvfp4": Model("Klein 4B · Compact", "flux-2-klein-4b-nvfp4.safetensors"),
+    "base": Model("Klein 4B Base · FP8", "flux-2-klein-base-4b-fp8.safetensors"),
 }
+
+
+def installed_models():
+    checkpoints = folder_paths.get_filename_list("diffusion_models")
+    encoders = folder_paths.get_filename_list("text_encoders")
+    return {key: model.label for key, model in MODELS.items()
+            if model.checkpoint in checkpoints and model.encoder in encoders}
 
 
 def workflow(prompt, model, seed, run_id, source=None):
@@ -27,8 +44,8 @@ def workflow(prompt, model, seed, run_id, source=None):
         return {"class_type": kind, "inputs": inputs}
 
     graph = {
-        "1": node("UNETLoader", unet_name=MODELS[model][1], weight_dtype="default"),
-        "2": node("CLIPLoader", clip_name="qwen_3_4b.safetensors", type="flux2",
+        "1": node("UNETLoader", unet_name=MODELS[model].checkpoint, weight_dtype="default"),
+        "2": node("CLIPLoader", clip_name=MODELS[model].encoder, type="flux2",
                   device="cpu" if model == "nvfp4" else "default"),
         "3": node("VAELoader", vae_name="flux2-vae.safetensors"),
         "4": node("CLIPTextEncode", clip=["2", 0], text=prompt),
@@ -67,8 +84,7 @@ async def studio(request):
 
 @routes.get("/studio/api/models")
 async def models(request):
-    installed = folder_paths.get_filename_list("diffusion_models")
-    return web.json_response({k: v[0] for k, v in MODELS.items() if v[1] in installed})
+    return web.json_response(installed_models())
 
 
 @routes.post("/studio/api/generate")
@@ -88,17 +104,20 @@ async def edit(request):
         parent = image_info(path, path.stat().st_mtime)
     except (OSError, ValueError, KeyError):
         raise web.HTTPNotFound(text="The selected image is no longer available.")
-    model = next((key for key, (name, _) in MODELS.items() if name == parent["model"]), None)
+    model = parent.get("model_id")
+    if model is None:  # Older studio PNGs store only the display name.
+        model = next((key for key, spec in MODELS.items() if spec.label == parent["model"]), None)
     return await submit(request, body.get("prompt"), model, parent)
 
 
 async def submit(request, prompt, model, parent=None):
     prompt = prompt.strip() if isinstance(prompt, str) else ""
-    if not prompt or len(prompt) > 8000 or model not in MODELS:
+    if not prompt or len(prompt) > 8000 or not isinstance(model, str) or model not in installed_models():
         raise web.HTTPBadRequest(text="Enter a prompt and choose an installed model.")
     run_id = uuid.uuid4().hex
     seed = secrets.randbits(52)
-    info = {"prompt": prompt, "model": MODELS[model][0], "seed": seed, "submitted": time.time()}
+    info = {"prompt": prompt, "model": MODELS[model].label, "model_id": model,
+            "seed": seed, "submitted": time.time()}
     source = None
     if parent:
         source = parent["file"]

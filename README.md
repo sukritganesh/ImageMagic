@@ -19,12 +19,25 @@ The default setup downloads about 14.5 GB, including the archive, encoder, decod
 
 Double-click **Start ImageMagic.cmd** to start or reopen this installation. The launcher uses port 8188 by default, then tries 8189, 8190, and so on if needed. If this installation is already running, the launcher reopens its current port even if a lower port has since become available. It opens the selected URL in your browser and writes startup diagnostics to `studio.log`.
 
+### Add Klein 9B FP8
+
+Sign in to Hugging Face and request access on the [official Klein 9B FP8 model page](https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8). The 9B weights use the FLUX Non-Commercial License. The checkpoint and its Qwen 3 8B text encoder need about 18.1 GB of additional disk space.
+
+After the default setup, run the optional installer from the repository root. It uses your local Hugging Face login if available. Otherwise, paste a [read token](https://huggingface.co/settings/tokens) that can download the gated model at the hidden prompt. Setup uses the pasted token only for the download.
+
+```powershell
+.\setup.ps1 -Klein9B
+```
+
+If you prefer to download in your browser, save `flux-2-klein-9b-fp8.safetensors` from the model page to `ComfyUI_windows_portable/ComfyUI/models/diffusion_models/` and run `.\setup.ps1 -Klein9B`. Setup verifies that file and downloads the encoder. Refresh the studio to select **Klein 9B · FP8**.
+
 ## Use the gallery
 
-- Choose a model and enter a prompt. FP8 is the four-step default. Compact uses a smaller checkpoint and encodes text on the CPU. Base uses 50 steps.
+- Choose a model and enter a prompt. Klein 4B FP8 is the four-step default. Optional Klein 9B FP8 also uses four steps. Compact uses a smaller 4B checkpoint and encodes text on the CPU. Base uses 50 steps.
 - Click a picture to expand it. Scroll or use **+ / −** to zoom, drag to pan, and use **← / →** to compare versions. Escape or a click outside the picture returns you to the previous view.
 - Click the caption to read the full prompt or edit the selected version. Describe the change and choose **Generate edit**. The selected image serves as a visual reference. The new version appears on the same card.
-- Back up `ComfyUI_windows_portable/ComfyUI/output/ImageMagic/` to keep your gallery. The PNG metadata stores prompts, timing, and version relationships. Preserve the filenames and metadata when moving images.
+- The card and details show which model made the selected version. Edits use the source version's model.
+- Back up `ComfyUI_windows_portable/ComfyUI/output/ImageMagic/` to keep your gallery. The PNG metadata stores the prompt, model, seed, submission time, and version relationships. Preserve the filenames and metadata when moving images.
 
 ## Project layout
 

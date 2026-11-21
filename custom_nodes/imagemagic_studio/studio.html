@@ -92,7 +92,7 @@ figcaption,.detail label{font-size:13px;color:var(--muted);margin-top:6px}
   <div class="detail">
     <div>
       <div class="photos">
-        <figure id="originalFigure" hidden><button class="expand-photo" id="expandOriginal" aria-label="Expand original image" aria-haspopup="dialog"><img id="originalPhoto" alt="Original image"></button><figcaption>Original</figcaption></figure>
+        <figure id="originalFigure" hidden><button class="expand-photo" id="expandOriginal" aria-label="Expand original image" aria-haspopup="dialog"><img id="originalPhoto" alt="Original image"></button><figcaption id="originalLabel"></figcaption></figure>
         <figure><button class="expand-photo" id="expandDetail" aria-label="Expand selected image" aria-haspopup="dialog"><img id="detailPhoto" alt=""></button><figcaption id="versionLabel"></figcaption></figure>
       </div>
       <div class="version-controls"><div id="modalPager" class="pager"></div><button class="quiet" id="compare" hidden></button></div>
@@ -268,10 +268,13 @@ function renderDetails(){
   const canCompare=!!original && item.file!==group.root;
   $('detailPhoto').src=imageUrl(item); $('detailPhoto').alt=item.prompt;
   $('originalFigure').hidden=!(canCompare && compareOriginal);
-  if(!$('originalFigure').hidden) $('originalPhoto').src=imageUrl(original);
+  if(!$('originalFigure').hidden){
+    $('originalPhoto').src=imageUrl(original);
+    $('originalLabel').textContent='Original · '+original.model;
+  }
   $('compare').hidden=!canCompare;
   $('compare').textContent=compareOriginal?'View edit only':'Compare with original';
-  $('versionLabel').textContent=item.parent?'Version '+(group.index+1):'Original';
+  $('versionLabel').textContent=(item.parent?'Version '+(group.index+1):'Original')+' · '+item.model;
   $('promptHeading').textContent=item.parent?'Edit instruction':'Prompt';
   $('description').textContent=item.prompt;
   $('editStatus').textContent=editMessages.get(group.root) || '';
