@@ -17,7 +17,7 @@ cd ImageMagic
 
 The default setup downloads about 14.5 GB, including the archive, encoder, decoder, and fast FP8 checkpoint. Allow additional disk space for the extracted runtime and your gallery. Setup verifies SHA-256 checksums and reuses existing files. Run `.\setup.ps1 -AllModels` to add Compact and Base (about 6.6 GB more). If PowerShell blocks the downloaded setup script, review it and use `Unblock-File .\setup.ps1` where your execution policy permits local scripts.
 
-On subsequent runs, double-click **Start ImageMagic.cmd**. The launcher opens the studio in your browser and writes startup diagnostics to `studio.log`. [Open the local studio](http://127.0.0.1:8188/studio)
+Double-click **Start ImageMagic.cmd** to start or reopen this installation. The launcher uses port 8188 by default, then tries 8189, 8190, and so on if needed. If this installation is already running, the launcher reopens its current port even if a lower port has since become available. It opens the selected URL in your browser and writes startup diagnostics to `studio.log`.
 
 ## Use the gallery
 
