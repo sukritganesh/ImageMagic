@@ -13,7 +13,7 @@
   <div class="controls"><label for="model">Model</label><select id="model"></select><button id="generate" disabled>Generate ↗</button></div>
 </form>
 <div class="status" id="status" role="status"></div>
-<div class="section"><h2>Your images</h2><span id="count"></span></div>
+<div class="section"><h2>Your images</h2><div class="gallery-actions"><span id="count"></span><button class="quiet" id="emptyTrash" aria-haspopup="dialog">Empty trash</button></div></div>
 <p id="empty" hidden>Your first image will appear here.</p><div id="grid"></div>
 </main>
 <dialog id="viewer" aria-labelledby="detailTitle">
@@ -33,7 +33,19 @@
         <button id="saveEdit">Generate edit ↗</button>
       </form>
       <div id="editStatus" class="status" role="status"></div>
+      <div class="delete-actions">
+        <button type="button" class="delete-link" id="deleteVersion">Delete this version</button>
+        <button type="button" class="delete-link" id="deleteCard">Delete entire card</button>
+      </div>
     </div>
+  </div>
+</dialog>
+<dialog id="confirmDelete" aria-labelledby="deleteTitle" aria-describedby="deleteExplanation">
+  <h2 id="deleteTitle"></h2>
+  <p id="deleteExplanation"></p>
+  <div class="confirm-actions">
+    <button id="cancelDelete" class="quiet" autofocus>Cancel</button>
+    <button id="confirmAction"></button>
   </div>
 </dialog>
 <dialog id="lightbox" aria-label="Image viewer" tabindex="-1">
@@ -60,6 +72,7 @@ const groups = new Map();
 const edits = new Map(JSON.parse(sessionStorage.getItem(storageKey('studioEdits')) || '[]'));
 const editMessages = new Map();
 let opened = null, compareOriginal = true;
+let deleting = false, galleryRequest = 0;
 function savePending(){sessionStorage.setItem(storageKey('pending'), JSON.stringify([...pending]))}
 async function json(url, options){
   const response = await fetch(url, options);
@@ -125,9 +138,24 @@ $('largeNext').onclick=()=>stepPhoto(1);
 $('zoomIn').onclick=()=>changeZoom(1.25);
 $('zoomOut').onclick=()=>changeZoom(1/1.25);
 $('largeClose').onclick=()=>lightbox.close();
-lightbox.onclick=event=>{
-  if(event.target===lightbox || event.target===stage) lightbox.close();
-};
+function dismissOnBackdrop(dialog, isBackdrop){
+  let startedOutside=false;
+  dialog.addEventListener('pointerdown',event=>{
+    startedOutside=event.button===0 && isBackdrop(event);
+  });
+  dialog.addEventListener('click',event=>{
+    if(startedOutside && isBackdrop(event)) dialog.close();
+    startedOutside=false;
+  });
+}
+for(const dialog of [$('viewer'),$('confirmDelete')]){
+  dismissOnBackdrop(dialog,event=>{
+    if(event.target!==dialog) return false;
+    const rect=dialog.getBoundingClientRect();
+    return event.clientX<rect.left || event.clientX>=rect.right || event.clientY<rect.top || event.clientY>=rect.bottom;
+  });
+}
+dismissOnBackdrop(lightbox,event=>event.target===lightbox || event.target===stage);
 lightbox.onclose=()=>{photoGroup=null; drag=null; largePhoto.classList.remove('dragging')};
 lightbox.onkeydown=event=>{
   if(event.altKey || event.ctrlKey || event.metaKey) return;
@@ -209,6 +237,9 @@ function renderDetails(){
   $('promptHeading').textContent=item.parent?'Edit instruction':'Prompt';
   $('description').textContent=item.prompt;
   $('editStatus').textContent=editMessages.get(group.root) || '';
+  $('deleteVersion').textContent=group.versions.length===1?'Delete image':'Delete this version';
+  $('deleteCard').hidden=group.versions.length===1;
+  $('deleteVersion').disabled=$('deleteCard').disabled=deleting;
   pager($('modalPager'),group);
 }
 function paint(group){
@@ -232,7 +263,11 @@ function updateGallery(items){
   for(const [root,group] of groups){
     if(families.has(root)) continue;
     if(photoGroup===group) lightbox.close();
-    if(opened===group) $('viewer').close();
+    if(opened===group){
+      if($('confirmDelete').open) $('confirmDelete').close();
+      $('viewer').close();
+      $('prompt').focus({preventScroll:true});
+    }
     group.card.remove(); groups.delete(root);
   }
   let position=0;
@@ -263,11 +298,17 @@ function finishEdit(id,message){
   editMessages.set(root,message);
   if(opened?.root===root) $('editStatus').textContent=message;
 }
-async function refresh(){
-  const items=await json('/studio/api/gallery?session='+encodeURIComponent(sessionId)), signature=items.map(x=>x.file).join(',');
+async function refreshGallery(){
+  const request=++galleryRequest;
+  const items=await json('/studio/api/gallery?session='+encodeURIComponent(sessionId));
+  if(request!==galleryRequest) return;
+  const signature=items.map(x=>x.file).join(',');
   if(signature!==previous){
     updateGallery(items); previous=signature;
   }
+}
+async function refresh(){
+  await refreshGallery();
   for(const id of [...pending]){
     const entry=(await json('/history/'+encodeURIComponent(id)))[id];
     if(!entry){
@@ -304,6 +345,68 @@ $('composer').onsubmit=async e=>{
 };
 $('closeViewer').onclick=()=>$('viewer').close();
 $('viewer').addEventListener('close',()=>{opened=null});
+function confirmDeletion(title, explanation, label, action){
+  $('deleteTitle').textContent=title;
+  $('deleteExplanation').textContent=explanation;
+  $('confirmAction').textContent=label;
+  $('confirmAction').onclick=()=>{
+    $('confirmDelete').close();
+    action();
+  };
+  $('confirmDelete').showModal();
+}
+function askDelete(scope){
+  const group=opened, item=group.versions[group.index], count=group.versions.length;
+  const card=scope==='card';
+  const target={session:sessionId,scope,file:item.file};
+  if(card) target.versions=group.versions.map(version=>version.file);
+  const title=card?'Delete entire card?':count===1?'Delete image?':
+    item.file===group.root?'Delete the original?':'Delete version '+(group.index+1)+' of '+count+'?';
+  const explanation=card?'All '+count+' versions will move to this session’s trash.':
+    count===1?'This image will move to trash and its card will disappear.':
+    'This image will move to trash. The other versions will stay on this card and can still be edited.';
+  confirmDeletion(title,explanation,'Move to trash',()=>deleteImages(target,group));
+}
+$('deleteVersion').onclick=()=>askDelete('version');
+$('deleteCard').onclick=()=>askDelete('card');
+$('cancelDelete').onclick=()=>$('confirmDelete').close();
+async function deleteImages(target,group){
+  deleting=true; renderDetails();
+  let message;
+  try{
+    const result=await json('/studio/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(target)});
+    message=result.deleted.length===1?'Image moved to trash.':result.deleted.length+' images moved to trash.';
+  }catch(error){message=error.message}
+  deleting=false;
+  $('status').textContent=message;
+  editMessages.set(group.root,message);
+  if(opened) renderDetails();
+  try{await refreshGallery()}catch{ $('status').textContent=message+' Reconnecting to the gallery…' }
+}
+$('emptyTrash').onclick=async()=>{
+  const button=$('emptyTrash');
+  button.disabled=true;
+  try{
+    const trash=await json('/studio/api/trash?session='+encodeURIComponent(sessionId));
+    if(!trash.count){$('status').textContent='This session’s trash is empty.'; return}
+    if(document.querySelector('dialog[open]')) return;
+    const amount=trash.count+(trash.count===1?' image':' images');
+    button.disabled=false;
+    button.focus();
+    confirmDeletion('Empty this session’s trash?',amount+' will be permanently deleted. This cannot be undone.',
+      'Delete permanently',()=>emptyTrash(trash.revision));
+  }catch(error){$('status').textContent=error.message}
+  finally{button.disabled=false}
+};
+async function emptyTrash(revision){
+  $('emptyTrash').disabled=true;
+  try{
+    await json('/studio/api/trash/empty',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({session:sessionId,revision})});
+    $('status').textContent='This session’s trash is empty.';
+  }catch(error){$('status').textContent=error.message}
+  finally{$('emptyTrash').disabled=false}
+}
 $('compare').onclick=()=>{compareOriginal=!compareOriginal; renderDetails()};
 $('editForm').onsubmit=async event=>{
   event.preventDefault();

@@ -41,6 +41,8 @@ If you prefer to download in your browser, save `flux-2-klein-9b-fp8.safetensors
 - Click a picture to expand it. Scroll or use **+ / −** to zoom, drag to pan, and use **← / →** to compare versions. Escape or a click outside the picture returns you to the previous view.
 - Click the caption to read the full prompt or edit the selected version. Describe the change and choose **Generate edit**. The selected image serves as a visual reference. The new version appears on the same card.
 - The card and details show which model made the selected version. Edits use the source version's model.
+- Open the caption to delete the selected version or the entire card. Each version is a complete PNG, so later edits still work if you delete their source. Deleting the last version removes the card. Click outside a dialog or press Escape to return to the previous view.
+- Deleted PNGs stay in a batch folder inside `.trash` in that session’s output folder. To restore them, move them back to the folder containing `.trash` with their original filenames. To reclaim disk space, choose **Empty trash** next to the gallery count. Review the number of images and choose **Delete permanently** to empty that session’s trash.
 - Back up `ComfyUI_windows_portable/ComfyUI/output/ImageMagic/` to keep your gallery. The PNG metadata stores the prompt, model, seed, submission time, and version relationships. Preserve the filenames and metadata when moving images.
 
 ## Project layout

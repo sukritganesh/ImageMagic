@@ -53,6 +53,14 @@ figcaption,.detail label{font-size:13px;color:var(--muted);margin-top:6px}
 #editForm{padding:12px}
 #instruction{min-height:80px;font-size:16px}
 #editForm button{display:block}
+.delete-actions,.confirm-actions,.gallery-actions{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.delete-actions{border-top:1px solid #393d34;padding-top:8px}
+.delete-link{margin:0;padding:7px 0;background:transparent;color:#e8aaa4;font-size:14px;font-weight:500}
+.delete-link:hover{text-decoration:underline}
+#confirmDelete{width:min(410px,92vw)}
+#deleteExplanation{line-height:1.5;color:var(--muted)}
+.confirm-actions{justify-content:flex-end}
+#confirmAction{margin:0;background:#efb0a9}
 @media(max-width:740px){.detail{grid-template-columns:1fr}.photos{max-width:540px;margin:auto}.picture .pager{gap:3px;right:3px;bottom:3px}.picture .pager button{padding:4px}}
 .caption{margin:0 14px 16px;justify-content:space-between;flex-wrap:wrap;gap:4px}
 #empty{color:var(--muted)}
