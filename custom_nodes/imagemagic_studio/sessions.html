@@ -13,4 +13,86 @@
   </form>
   {{sessions}}
 </main>
+<dialog id="confirmDelete" aria-labelledby="deleteTitle" aria-describedby="deleteExplanation">
+  <h2 id="deleteTitle"></h2>
+  <p id="deleteExplanation" aria-live="polite"></p>
+  <div class="confirm-actions">
+    <button id="cancelDelete" class="quiet" autofocus>Cancel</button>
+    <button id="confirmAction" disabled>Delete permanently</button>
+  </div>
+</dialog>
+<script>
+const dialog = document.getElementById('confirmDelete');
+const explanation = document.getElementById('deleteExplanation');
+const confirmButton = document.getElementById('confirmAction');
+let selected;
+
+async function review(session, notice = '') {
+  confirmButton.disabled = true;
+  session.revision = null;
+  explanation.textContent = 'Counting images…';
+  try {
+    const response = await fetch(session.url + '/deletion');
+    if (!response.ok) throw new Error(await response.text());
+    const {images, trashed, revision} = await response.json();
+    if (selected !== session || !dialog.open) return;
+    const count = images + (images === 1 ? ' saved image' : ' saved images');
+    const trash = trashed ? ' and ' + trashed + ' more in trash' : '';
+    explanation.textContent = notice + 'This session contains ' + count + trash +
+      '. Each saved version counts as one image. Deleting the session is permanent.';
+    session.revision = revision;
+    confirmButton.disabled = false;
+  } catch (error) {
+    if (selected === session) explanation.textContent = error.message;
+  }
+}
+
+document.querySelector('.session-list')?.addEventListener('click', event => {
+  const button = event.target.closest('button[data-session]');
+  if (!button) return;
+  const name = button.closest('li').querySelector('a span').textContent;
+  selected = {url: '/studio/api/sessions/' + button.dataset.session};
+  document.getElementById('deleteTitle').textContent = 'Delete “' + name + '”?';
+  dialog.showModal();
+  review(selected);
+});
+
+confirmButton.onclick = async () => {
+  const session = selected;
+  if (!session.revision || confirmButton.disabled) return;
+  confirmButton.disabled = true;
+  try {
+    const response = await fetch(session.url + '/delete', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({revision: session.revision})
+    });
+    if (response.ok) {
+      location.reload();
+      return;
+    }
+    const message = await response.text();
+    if (selected !== session || !dialog.open) return;
+    if (response.status === 409) {
+      await review(session, message + ' ');
+      return;
+    }
+    throw new Error(message);
+  } catch (error) {
+    if (selected === session) explanation.textContent = error.message;
+  }
+};
+
+document.getElementById('cancelDelete').onclick = () => dialog.close();
+function outside(event) {
+  const r = dialog.getBoundingClientRect();
+  return event.target === dialog && (event.clientX < r.left || event.clientX >= r.right ||
+    event.clientY < r.top || event.clientY >= r.bottom);
+}
+let pressedOutside = false;
+dialog.onpointerdown = event => { pressedOutside = event.button === 0 && outside(event); };
+dialog.onclick = event => {
+  if (pressedOutside && outside(event)) dialog.close();
+  pressedOutside = false;
+};
+</script>
 </html>

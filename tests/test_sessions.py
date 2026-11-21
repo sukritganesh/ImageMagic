@@ -53,6 +53,90 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         Image.new("RGB", (1, 1)).save(folder / name, pnginfo=metadata)
         return name
 
+    async def deletion_preview(self, session):
+        response = await self.client.get(f"/studio/api/sessions/{session}/deletion")
+        self.assertEqual(response.status, 200)
+        return await response.json()
+
+    async def delete_session(self, session, preview):
+        return await self.client.post(f"/studio/api/sessions/{session}/delete", json=preview)
+
+    async def test_delete_session_counts_versions_and_scopes_permanent_deletion(self):
+        session = await self.create_session("Coast")
+        keep = await self.create_session("Keep")
+        folder = self.output / session
+        original = self.save_png(folder)
+        self.save_png(folder, "b", original=original, parent=original)
+        self.save_png(folder, "c", original=original, parent=original)
+        for neighbor in (self.output, self.output / keep):
+            self.save_png(neighbor)
+        before = await self.deletion_preview(session)
+        self.assertEqual((before["images"], before["trashed"]), (3, 0))
+        await self.client.post("/studio/api/delete", json={"session": session, "file": original, "scope": "version"})
+        self.assertEqual((await self.delete_session(session, {})).status, 400)
+        self.assertEqual((await self.delete_session(session, before)).status, 409)
+        current = await self.deletion_preview(session)
+        self.assertEqual((current["images"], current["trashed"]), (2, 1))
+        self.assertEqual(await (await self.delete_session(session, current)).json(), {"deleted": 3})
+        self.assertFalse(folder.exists())
+        self.assertEqual((await self.client.get(f"/studio/session/{session}")).status, 404)
+        self.assertTrue((self.output / keep / original).is_file())
+        self.assertTrue((self.output / original).is_file())
+
+    async def test_delete_previous_images_preserves_named_sessions_and_unrelated_files(self):
+        keep = await self.create_session("Named session")
+        saved = self.save_png(self.output / keep)
+        self.save_png(self.output)
+        await self.client.post("/studio/api/delete", json={"file": saved, "scope": "version"})
+        self.save_png(self.output, "b")
+        unrelated = self.output / "reference.png"
+        Image.new("RGB", (1, 1)).save(unrelated)
+        preview = await self.deletion_preview("previous")
+        self.assertEqual((preview["images"], preview["trashed"]), (1, 1))
+        self.assertEqual((await self.delete_session("previous", preview)).status, 200)
+        home = await (await self.client.get("/studio")).text()
+        self.assertNotIn("Previous images", home)
+        self.assertIn("Named session", home)
+        self.assertTrue((self.output / keep / saved).is_file())
+        self.assertTrue(unrelated.is_file())
+        self.assertFalse((self.output / ".trash").exists())
+
+    async def test_delete_empty_session_checks_pending_and_running_jobs(self):
+        session = await self.create_session("Empty")
+        other = await self.create_session("Other")
+        preview = await self.deletion_preview(session)
+        self.assertEqual((preview["images"], preview["trashed"]), (0, 0))
+        await self.client.post("/studio/api/generate", json={"session": session, "prompt": "A hill"})
+        for queue in (self.pending, self.running):
+            queue.append((0, "job", self.queued["prompt"]))
+            self.assertEqual((await self.delete_session(session, preview)).status, 409)
+            self.assertTrue((self.output / session / "name.txt").is_file())
+            queue.clear()
+        await self.client.post("/studio/api/generate", json={"session": other, "prompt": "A lake"})
+        self.pending.append((0, "other", self.queued["prompt"]))
+        self.assertEqual((await self.delete_session(session, preview)).status, 200)
+        self.assertFalse((self.output / session).exists())
+
+    async def test_can_review_remaining_images_after_a_locked_file(self):
+        session = await self.create_session("Locked file")
+        folder = self.output / session
+        self.save_png(folder)
+        locked = self.save_png(folder, "b")
+        unlink = Path.unlink
+
+        def fail_if_locked(path, **kwargs):
+            if path.name == locked:
+                raise PermissionError("locked")
+            return unlink(path, **kwargs)
+
+        with patch.object(Path, "unlink", fail_if_locked):
+            preview = await self.deletion_preview(session)
+            self.assertEqual((await self.delete_session(session, preview)).status, 409)
+        remaining = await self.deletion_preview(session)
+        self.assertGreaterEqual(remaining["images"], 1)
+        self.assertEqual((await self.delete_session(session, remaining)).status, 200)
+        self.assertFalse(folder.exists())
+
     async def test_home_lists_named_sessions_and_preserves_the_previous_gallery(self):
         self.assertIn("No sessions yet.", await (await self.client.get("/studio")).text())
         name = self.save_png(self.output)

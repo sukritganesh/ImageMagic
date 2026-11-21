@@ -8,7 +8,7 @@ import time
 import uuid
 from functools import lru_cache
 from html import escape
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
 from aiohttp import ClientSession, web
@@ -78,8 +78,8 @@ def workflow(prompt, model, seed, run_id, source=None):
 
 
 routes = PromptServer.instance.routes
-# Serialize deletion with handing an edit's source to ComfyUI's queue.
-edit_queue_lock = asyncio.Lock()
+# Keep deletion and the handoff of new jobs to ComfyUI's queue mutually exclusive.
+queue_lock = asyncio.Lock()
 
 
 def session_directory(session_id):
@@ -100,11 +100,13 @@ async def studio(request):
         if re.fullmatch(r"[0-9a-f]{32}", session_id):
             sessions.append((marker.stat().st_mtime, session_id, marker.read_text(encoding="utf-8")))
     sessions.sort(reverse=True)
-    if any(OUTPUT.glob("*.png")) or (OUTPUT / ".trash").is_dir():
+    if next(iter_gallery_images(OUTPUT), None) or trash_snapshot(OUTPUT.resolve() / ".trash")[0]:
         sessions.append((0, "previous", "Previous images"))
     rows = "".join(
         f'<li><a href="/studio/session/{session_id}"><span>{escape(name)}</span>'
-        f'<span aria-hidden="true">→</span></a></li>' for _, session_id, name in sessions
+        f'<span aria-hidden="true">→</span></a>'
+        f'<button class="delete-link" data-session="{session_id}" aria-label="Delete {escape(name)}" '
+        f'aria-haspopup="dialog">Delete</button></li>' for _, session_id, name in sessions
     )
     contents = f'<ul class="session-list">{rows}</ul>' if rows else '<p class="empty-list">No sessions yet.</p>'
     page = (ROOT / "sessions.html").read_text(encoding="utf-8").replace("{{sessions}}", contents)
@@ -146,14 +148,15 @@ async def models(request):
 @routes.post("/studio/api/generate")
 async def generate(request):
     body = await request.json()
-    folder = session_directory(body.get("session", "previous"))
-    return await submit(request, body.get("prompt"), body.get("model", "fp8"), folder=folder)
+    async with queue_lock:
+        folder = session_directory(body.get("session", "previous"))
+        return await submit(request, body.get("prompt"), body.get("model", "fp8"), folder=folder)
 
 
 @routes.post("/studio/api/edit")
 async def edit(request):
     body = await request.json()
-    async with edit_queue_lock:
+    async with queue_lock:
         return await queue_edit(request, body)
 
 
@@ -205,14 +208,19 @@ def image_info(path, modified):
             "seconds": round(max(0, modified - info["submitted"]), 1)}
 
 
-def gallery_images(folder):
-    items = []
+def iter_gallery_images(folder, *, require_readable=False):
     for path in folder.glob("*.png"):
         try:
-            items.append(image_info(path, path.stat().st_mtime))
-        except (OSError, ValueError, KeyError):
+            yield image_info(path, path.stat().st_mtime)
+        except (Image.UnidentifiedImageError, ValueError, KeyError):
             continue
-    return sorted(items, key=lambda item: item["submitted"], reverse=True)
+        except OSError:
+            if require_readable:
+                raise
+
+
+def gallery_images(folder):
+    return sorted(iter_gallery_images(folder), key=lambda item: item["submitted"], reverse=True)
 
 
 @routes.get("/studio/api/gallery")
@@ -251,7 +259,7 @@ async def delete_images(request):
     if not isinstance(body, dict) or body.get("scope") not in ("version", "card"):
         raise web.HTTPBadRequest(text="Choose a version or an entire card.")
     folder = session_directory(body.get("session", "previous"))
-    async with edit_queue_lock:
+    async with queue_lock:
         running, queued = PromptServer.instance.prompt_queue.get_current_queue_volatile()
         items = gallery_images(folder)
         selected = next((item for item in items if item["file"] == body.get("file")), None)
@@ -294,6 +302,91 @@ def trash_snapshot(trash):
     return images, revision
 
 
+def purge_images(images, trash):
+    for image in images:
+        if image.resolve() != image:
+            raise web.HTTPConflict(text="The files have changed. Review them again.")
+        image.unlink(missing_ok=True)
+    for directory in [*trash_batches(trash), trash]:
+        if directory.resolve() == directory and directory.is_dir() and not any(directory.iterdir()):
+            directory.rmdir()
+
+
+def session_in_queue(folder):
+    destination = PurePosixPath(folder.relative_to(OUTPUT.parent).as_posix())
+    running, queued = PromptServer.instance.prompt_queue.get_current_queue_volatile()
+    for job in (*running, *queued):
+        for node in job[2].values():
+            inputs = node.get("inputs", {})
+            if node.get("class_type") == "SaveImage":
+                path = inputs.get("filename_prefix")
+            elif node.get("class_type") == "LoadImage":
+                path = inputs.get("image")
+                if not isinstance(path, str) or not path.endswith(" [output]"):
+                    continue
+                path = path.removesuffix(" [output]")
+            else:
+                continue
+            if isinstance(path, str) and PurePosixPath(path.replace("\\", "/")).parent == destination:
+                return True
+    return False
+
+
+def session_deletion_snapshot(folder):
+    trash = trash_directory(folder)
+    saved = [trash.parent / item["file"] for item in iter_gallery_images(folder, require_readable=True)]
+    discarded, _ = trash_snapshot(trash)
+    files = saved + discarded
+    entries = []
+    for path in files:
+        if path.resolve() != path:
+            raise web.HTTPConflict(text="A session image points outside its folder. Check its location first.")
+        stat = path.stat()
+        entries.append((path.relative_to(trash.parent).as_posix(), stat.st_size, stat.st_mtime_ns))
+    revision = hashlib.sha256(json.dumps([folder.name, sorted(entries)]).encode()).hexdigest()
+    return {"images": len(saved), "trashed": len(discarded), "revision": revision}, files, trash
+
+
+@routes.get("/studio/api/sessions/{session_id}/deletion")
+async def preview_session_deletion(request):
+    folder = session_directory(request.match_info["session_id"])
+    try:
+        info, _, _ = session_deletion_snapshot(folder)
+    except OSError as error:
+        raise web.HTTPConflict(text="Could not count all the images. Check the files and try again.") from error
+    return web.json_response(info, headers={"Cache-Control": "no-store"})
+
+
+@routes.post("/studio/api/sessions/{session_id}/delete")
+async def delete_session(request):
+    body = await request.json()
+    if not isinstance(body, dict) or not isinstance(body.get("revision"), str):
+        raise web.HTTPBadRequest(text="Review the image count before deleting this session.")
+    async with queue_lock:
+        folder = session_directory(request.match_info["session_id"])
+        if session_in_queue(folder):
+            raise web.HTTPConflict(text="This session has a queued or running job. Try again when it finishes.")
+        try:
+            info, files, trash = session_deletion_snapshot(folder)
+            if body["revision"] != info["revision"]:
+                raise web.HTTPConflict(text="The contents of this session have changed.")
+            purge_images(files, trash)
+            # Previous images shares its directory with every named session.
+            if folder != OUTPUT:
+                marker = folder / "name.txt"
+                name = marker.read_bytes()
+                marker.unlink()
+                try:
+                    if not any(folder.iterdir()):
+                        folder.rmdir()
+                except OSError:
+                    marker.write_bytes(name)
+                    raise
+        except OSError as error:
+            raise web.HTTPConflict(text="Could not finish deleting the session. Check the remaining files and try again.") from error
+    return web.json_response({"deleted": len(files)})
+
+
 @routes.get("/studio/api/trash")
 async def trash_info(request):
     folder = session_directory(request.query.get("session", "previous"))
@@ -312,13 +405,7 @@ async def empty_trash(request):
     if body["revision"] != revision:
         raise web.HTTPConflict(text="The trash has changed. Choose Empty trash again to review it.")
     try:
-        for image in images:
-            if image.resolve() != image:
-                raise web.HTTPConflict(text="The trash has changed. Review it again.")
-            image.unlink(missing_ok=True)
-        for directory in [*trash_batches(trash), trash]:
-            if directory.resolve() == directory and directory.is_dir() and not any(directory.iterdir()):
-                directory.rmdir()
+        purge_images(images, trash)
     except OSError as error:
         raise web.HTTPConflict(text="Could not finish emptying the trash. Check the remaining files and try again.") from error
     return web.json_response({"deleted": len(images)})

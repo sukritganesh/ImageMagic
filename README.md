@@ -4,6 +4,8 @@ ImageMagic is a local image generation and editing studio for Windows. Type a pr
 
 The home page lists your sessions. Enter a name and choose **Create session**, or open an existing session to return to its gallery. Use **All sessions** to go back. You can bookmark a session or open several in separate tabs.
 
+Choose **Delete** beside a session to review its image count. Each original and each saved edit counts as one image. The confirmation also shows how many more images are in that session’s trash. Choose **Delete permanently** to remove the session and both sets of images.
+
 Images created before sessions appear together in **Previous images**, including their edits. New sessions keep their images and a small name file in separate folders under the gallery backup directory.
 
 ## Install and run
