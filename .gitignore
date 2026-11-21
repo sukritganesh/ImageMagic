@@ -1,0 +1,12 @@
+/ComfyUI_windows_portable/
+/.downloads/
+/studio.log
+/studio-preview.jpg
+/farmhouse-comparison.jpg
+/image-viewer.jpg
+*.safetensors
+*.part
+__pycache__/
+*.py[cod]
+.env
+.env.*
