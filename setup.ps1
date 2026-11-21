@@ -1,4 +1,4 @@
-param([switch]$AllModels)
+param([switch]$AllModels, [switch]$Klein9B)
 
 $ErrorActionPreference = 'Stop'
 $runtime = Join-Path $PSScriptRoot 'ComfyUI_windows_portable'
@@ -50,6 +50,43 @@ try {
     if ($AllModels) {
         Get-VerifiedFile "$bfl/FLUX.2-klein-4b-nvfp4/resolve/1db2b2f776c24b76f1122e5f69ab1949fc620068/flux-2-klein-4b-nvfp4.safetensors" "$models/diffusion_models/flux-2-klein-4b-nvfp4.safetensors" 'd8c5007b6a3bbbdfd38538bbcef5101a55dfde81894f58d2e3c8701cdef3542b'
         Get-VerifiedFile "$bfl/FLUX.2-klein-base-4b-fp8/resolve/103db268c10d4d3921101b46057671f9ac460da6/flux-2-klein-base-4b-fp8.safetensors" "$models/diffusion_models/flux-2-klein-base-4b-fp8.safetensors" '44bab3a86fe98b85d21dd2a4729ebdc3ae51fb8a39f76e457e18c724219e6840'
+    }
+    if ($Klein9B) {
+        $checkpoint = 'flux-2-klein-9b-fp8.safetensors'
+        $destination = Join-Path "$models/diffusion_models" $checkpoint
+        $candidate = $destination
+        if (!(Test-Path -LiteralPath $destination)) {
+            $staging = Join-Path $cache 'klein-9b'
+            $candidate = Join-Path $staging $checkpoint
+            if (!(Test-Path -LiteralPath $candidate)) {
+                $repo = 'black-forest-labs/FLUX.2-klein-9b-fp8'
+                $revision = '4d7225e69b516f7dc74779d1f6602abbe6ab4647'
+                Write-Host "Downloading $checkpoint from the approved Hugging Face account"
+                $download = @'
+import sys
+from getpass import getpass
+from huggingface_hub import get_token, hf_hub_download
+
+repo, filename, revision, folder = sys.argv[1:]
+token = get_token()
+if not token and sys.stdin.isatty():
+    token = getpass('Hugging Face read token for this download (hidden): ').strip()
+if not token:
+    sys.exit('A Hugging Face read token or a manually downloaded checkpoint is required.')
+hf_hub_download(repo, filename, revision=revision, local_dir=folder, token=token)
+'@
+                & "$runtime/python_embeded/python.exe" -s -c $download $repo $checkpoint $revision $staging
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Could not download Klein 9B. Check your Hugging Face model access and local login, or place the checkpoint at $destination and rerun setup."
+                }
+            }
+        }
+        if ((Get-FileHash -LiteralPath $candidate).Hash -ne '865ba09f5b4c3cbd3468a4bd3acb9fcb2f8740c54317482f0bcd4ed1d3655cee') {
+            throw "Unexpected checksum for $candidate. Move the file aside and rerun setup."
+        }
+        if ($candidate -ne $destination) { Move-Item -LiteralPath $candidate -Destination $destination }
+        $encoder = 'qwen_3_8b_fp8mixed.safetensors'
+        Get-VerifiedFile "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/1138ce884c8e977cdacacbe779784fec4426bb3f/split_files/text_encoders/$encoder" "$models/text_encoders/$encoder" 'abad16806e0cbabc54e0325d6565847443fe396d5f0be38bb3cd3fe75a1201d6'
     }
     Write-Host 'Ready. Double-click Start ImageMagic.cmd.'
 } finally {
