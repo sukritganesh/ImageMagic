@@ -61,7 +61,7 @@ def start_studio():
     source = ROOT / "custom_nodes" / "imagemagic_studio"
     installed = PORTABLE / "ComfyUI" / "custom_nodes" / source.name
     installed.mkdir(exist_ok=True)
-    for name in ("__init__.py", "studio.html"):
+    for name in ("__init__.py", "studio.html", "sessions.html", "style.css"):
         dest = installed / name
         if not dest.exists() or not filecmp.cmp(source / name, dest, shallow=False):
             shutil.copyfile(source / name, dest)

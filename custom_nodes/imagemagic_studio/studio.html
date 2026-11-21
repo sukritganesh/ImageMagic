@@ -2,83 +2,12 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ImageMagic • Local studio</title>
-<style>
-*{box-sizing:border-box}
-:root{color-scheme:dark;--paper:#f4f2e9;--ink:#181a17;--muted:#a8aaa1;--lime:#d4fc76}
-body{margin:0;background:#121410;color:var(--paper);font:16px Inter,"Segoe UI",sans-serif}
-main,header{width:min(1100px,92vw);margin:auto}
-header{display:flex;align-items:center;gap:11px;padding:24px 0;border-bottom:1px solid #353832;font-weight:650}
-.mark{width:24px;height:24px;border-radius:6px;background:repeating-linear-gradient(135deg,var(--lime) 0 4px,#22291d 4px 7px)}
-header a{margin-left:auto;color:var(--muted);font-size:13px;text-decoration:none}
-h1{font-size:clamp(40px,6vw,72px);font-weight:520;letter-spacing:-.065em;margin:42px 0 18px}
-form{border:1px solid #474b42;background:#20231d;border-radius:18px;padding:17px}
-form:focus-within{border-color:#89997a}
-textarea{width:100%;resize:vertical;min-height:98px;border:0;background:transparent;color:var(--paper);font:inherit;font-size:19px;line-height:1.5;padding:4px 5px}
-textarea::placeholder{color:#a8aa9e}
-.controls,.caption,.section{display:flex;align-items:center;gap:12px}
-.controls{flex-wrap:wrap;padding-top:12px;border-top:1px solid #393d34}
-label{color:var(--muted);font-size:13px}
-select,button{font:inherit;border-radius:9px;padding:10px 14px}
-select{color:var(--paper);background:#2c3028;border:1px solid #4a5043;font-size:14px}
-button{background:var(--lime);color:var(--ink);font-weight:700;border:0;cursor:pointer;margin-left:auto}
-button:disabled{opacity:.5;cursor:wait}
-:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
-.status{margin:8px 2px 0;font-size:14px;color:var(--muted);min-height:20px}
-.section{justify-content:space-between;margin:24px 0 14px}
-h2{font-weight:520;letter-spacing:-.04em;font-size:27px;margin:0}
-#count,.caption{font:12px "Cascadia Mono",Consolas,monospace;color:var(--muted)}
-#grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding-bottom:48px}
-article{display:flex;flex-direction:column;min-width:0;border-radius:12px;overflow:hidden;background:#20231d;border:1px solid #353a30}
-article:hover,article:focus-within{border-color:#89997a}
-.open-card,.expand-photo{display:block;width:100%;padding:0;margin:0;background:transparent;color:inherit;text-align:left;font:inherit;border-radius:0}
-.open-card{flex:1;align-content:start}
-.expand-photo{cursor:zoom-in}
-.open-card:focus-visible,.expand-photo:focus-visible{outline-offset:-3px}
-.picture{position:relative}
-article img{display:block;width:100%;aspect-ratio:1;object-fit:cover}
-.card-prompt{font-size:15px;line-height:1.45;margin:12px 14px 8px;overflow-wrap:anywhere;white-space:pre-wrap;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;overflow:hidden}
-.pager{display:flex;align-items:center;gap:8px;font-size:13px;font-variant-numeric:tabular-nums}
-.picture .pager{position:absolute;bottom:8px;right:8px;z-index:2;background:#11170ff2;padding:3px;border-radius:9px}
-.quiet{margin:0;background:#30352c;color:var(--paper);font-size:14px;padding:7px 11px}
-.quiet:disabled{cursor:default;opacity:.35}
-.pager button{padding:5px 8px}
-[hidden]{display:none!important}
-dialog{width:min(1060px,94vw);max-height:90dvh;overflow:auto;background:#181c16;color:var(--paper);border:1px solid #505748;border-radius:18px;padding:clamp(14px,2vw,26px)}
-dialog::backdrop{background:#080a08d9}
-body:has(dialog[open]){overflow:hidden}
-.dialog-head,.version-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.dialog-head{margin-bottom:18px}
-.detail{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(220px,1fr);gap:22px}
-.photos{display:flex;gap:8px;align-items:center}
-figure{margin:0;flex:1;min-width:0}
-figure img{display:block;width:100%;border-radius:8px}
-figcaption,.detail label{font-size:13px;color:var(--muted);margin-top:6px}
-.version-controls{margin-top:12px}
-#description{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;margin:0 0 18px}
-#editForm{padding:12px}
-#instruction{min-height:80px;font-size:16px}
-#editForm button{display:block}
-@media(max-width:740px){.detail{grid-template-columns:1fr}.photos{max-width:540px;margin:auto}.picture .pager{gap:3px;right:3px;bottom:3px}.picture .pager button{padding:4px}}
-.caption{margin:0 14px 16px;justify-content:space-between;flex-wrap:wrap;gap:4px}
-#empty{color:var(--muted)}
-@media(max-width:600px){#grid{gap:7px}.caption{font-size:10px;margin:6px}.card-prompt{font-size:12px;margin:6px}.controls{gap:6px}select,button{padding:9px}.section{margin-top:15px}}
-#lightbox{position:fixed;inset:0;box-sizing:border-box;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:12px 60px;border:0;border-radius:0;overflow:hidden;background:#0b0d0af7;outline:none}
-#photoStage{height:100%;display:grid;place-items:center;overflow:hidden;touch-action:none}
-#largePhoto{display:block;max-width:none;user-select:none;touch-action:none}
-#largePhoto.pannable{cursor:grab}
-#largePhoto.dragging{cursor:grabbing}
-.zoom-tools,#largeClose,#largeVersions{position:absolute;z-index:1}
-.zoom-tools{right:8px;top:50%;transform:translateY(-50%);display:grid;gap:6px}
-#largeClose{right:8px;top:12px}
-#lightbox button{width:42px;height:42px;padding:0;margin:0;border:1px solid #62665a;border-radius:10px;background:#1e231df5;color:var(--paper);font-size:21px;line-height:1}
-#lightbox button:disabled{cursor:default;opacity:.45}
-#largeVersions{bottom:17px;left:50%;transform:translateX(-50%);background:#151914ee;border-radius:12px;padding:3px 4px}
-@media(max-width:600px){#lightbox{padding:55px 8px 62px}.zoom-tools{top:8px;right:58px;transform:none;display:flex}#largeClose{top:8px}}
-</style>
+<title>{{session_name}} · ImageMagic</title>
+<link rel="stylesheet" href="/studio/style.css">
 <header><span class="mark" aria-hidden="true"></span>ImageMagic<a href="/" target="_blank" rel="noopener">Open ComfyUI ↗</a></header>
 <main>
-<h1>Image studio</h1>
+<a class="back-link" href="/studio">← All sessions</a>
+<h1>{{session_name}}</h1>
 <form id="composer">
   <textarea id="prompt" aria-label="Image prompt" placeholder="Describe the image you want to make…" required maxlength="8000"></textarea>
   <div class="controls"><label for="model">Model</label><select id="model"></select><button id="generate" disabled>Generate ↗</button></div>
@@ -123,20 +52,22 @@ figcaption,.detail label{font-size:13px;color:var(--muted);margin-top:6px}
 <script>
 const $ = id => document.getElementById(id);
 const text = (tag, value) => Object.assign(document.createElement(tag), {textContent:value});
-let previous = null, pending = new Set(JSON.parse(sessionStorage.getItem('pending') || '[]'));
+const sessionId = location.pathname.split('/').pop();
+const storageKey = key => sessionId==='previous' ? key : sessionId+':'+key;
+let previous = null, pending = new Set(JSON.parse(sessionStorage.getItem(storageKey('pending')) || '[]'));
 const missing = new Set();
 const groups = new Map();
-const edits = new Map(JSON.parse(sessionStorage.getItem('studioEdits') || '[]'));
+const edits = new Map(JSON.parse(sessionStorage.getItem(storageKey('studioEdits')) || '[]'));
 const editMessages = new Map();
 let opened = null, compareOriginal = true;
-function savePending(){sessionStorage.setItem('pending', JSON.stringify([...pending]))}
+function savePending(){sessionStorage.setItem(storageKey('pending'), JSON.stringify([...pending]))}
 async function json(url, options){
   const response = await fetch(url, options);
   if(!response.ok) throw Error((await response.text()).slice(0,500) || response.statusText);
   return response.json();
 }
 function imageUrl(item){
-  return '/view?'+new URLSearchParams({filename:item.file,subfolder:'ImageMagic',type:'output'});
+  return '/view?'+new URLSearchParams({filename:item.file,subfolder:item.subfolder,type:'output'});
 }
 const lightbox=$('lightbox'), stage=$('photoStage'), largePhoto=$('largePhoto');
 const minZoom=0.25, maxZoom=8;
@@ -325,12 +256,12 @@ function updateGallery(items){
 function finishEdit(id,message){
   const root=edits.get(id);
   if(!root) return;
-  edits.delete(id); sessionStorage.setItem('studioEdits',JSON.stringify([...edits]));
+  edits.delete(id); sessionStorage.setItem(storageKey('studioEdits'),JSON.stringify([...edits]));
   editMessages.set(root,message);
   if(opened?.root===root) $('editStatus').textContent=message;
 }
 async function refresh(){
-  const items=await json('/studio/api/gallery'), signature=items.map(x=>x.file).join(',');
+  const items=await json('/studio/api/gallery?session='+encodeURIComponent(sessionId)), signature=items.map(x=>x.file).join(',');
   if(signature!==previous){
     updateGallery(items); previous=signature;
   }
@@ -363,7 +294,7 @@ $('composer').onsubmit=async e=>{
   const prompt=$('prompt').value.trim(); if(!prompt || $('generate').disabled) return;
   $('generate').disabled=true;
   try{
-    const job=await json('/studio/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,model:$('model').value})});
+    const job=await json('/studio/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:sessionId,prompt,model:$('model').value})});
     pending.add(job.prompt_id); savePending(); $('status').textContent='Image queued…'; $('prompt').select();
   }catch(e){$('status').textContent='Could not submit. '+e.message}
   finally{$('generate').disabled=false}
@@ -377,9 +308,9 @@ $('editForm').onsubmit=async event=>{
   if(!prompt || $('saveEdit').disabled) return;
   $('saveEdit').disabled=true;
   try{
-    const job=await json('/studio/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source,prompt})});
+    const job=await json('/studio/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:sessionId,source,prompt})});
     pending.add(job.prompt_id); edits.set(job.prompt_id,group.root);
-    savePending(); sessionStorage.setItem('studioEdits',JSON.stringify([...edits]));
+    savePending(); sessionStorage.setItem(storageKey('studioEdits'),JSON.stringify([...edits]));
     editMessages.set(group.root,'Generating a new version…');
     if(opened===group){$('instruction').value=''; compareOriginal=true}
   }catch(e){editMessages.set(group.root,'Could not submit. '+e.message)}
