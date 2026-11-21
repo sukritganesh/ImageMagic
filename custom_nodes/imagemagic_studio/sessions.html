@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sessions · ImageMagic</title>
+<link rel="stylesheet" href="/studio/style.css">
+<header><span class="mark" aria-hidden="true"></span>ImageMagic<a href="/" target="_blank" rel="noopener">Open ComfyUI ↗</a></header>
+<main class="sessions-home">
+  <h1>Sessions</h1>
+  <form class="create-session" action="/studio/sessions" method="post">
+    <label for="sessionName">New session name</label>
+    <div><input id="sessionName" name="name" required maxlength="80" pattern=".*\S.*" autocomplete="off" placeholder="e.g. Woodland sketches"><button>Create session</button></div>
+  </form>
+  {{sessions}}
+</main>
+</html>

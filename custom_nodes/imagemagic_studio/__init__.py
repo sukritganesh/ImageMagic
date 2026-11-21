@@ -5,6 +5,7 @@ import secrets
 import time
 import uuid
 from functools import lru_cache
+from html import escape
 from pathlib import Path
 from typing import NamedTuple
 
@@ -77,9 +78,60 @@ def workflow(prompt, model, seed, run_id, source=None):
 routes = PromptServer.instance.routes
 
 
+def session_directory(session_id):
+    if session_id == "previous":
+        return OUTPUT
+    if isinstance(session_id, str) and re.fullmatch(r"[0-9a-f]{32}", session_id):
+        folder = OUTPUT / session_id
+        if (folder / "name.txt").is_file():
+            return folder
+    raise web.HTTPNotFound(text="Session not found.")
+
+
 @routes.get("/studio")
 async def studio(request):
-    return web.FileResponse(ROOT / "studio.html")
+    sessions = []
+    for marker in OUTPUT.glob("*/name.txt"):
+        session_id = marker.parent.name
+        if re.fullmatch(r"[0-9a-f]{32}", session_id):
+            sessions.append((marker.stat().st_mtime, session_id, marker.read_text(encoding="utf-8")))
+    sessions.sort(reverse=True)
+    if any(OUTPUT.glob("*.png")):
+        sessions.append((0, "previous", "Previous images"))
+    rows = "".join(
+        f'<li><a href="/studio/session/{session_id}"><span>{escape(name)}</span>'
+        f'<span aria-hidden="true">→</span></a></li>' for _, session_id, name in sessions
+    )
+    contents = f'<ul class="session-list">{rows}</ul>' if rows else '<p class="empty-list">No sessions yet.</p>'
+    page = (ROOT / "sessions.html").read_text(encoding="utf-8").replace("{{sessions}}", contents)
+    return web.Response(text=page, content_type="text/html", headers={"Cache-Control": "no-store"})
+
+
+@routes.post("/studio/sessions")
+async def create_session(request):
+    form = await request.post()
+    name = form.get("name")
+    if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
+        raise web.HTTPBadRequest(text="Enter a session name between 1 and 80 characters.")
+    folder = OUTPUT / uuid.uuid4().hex
+    folder.mkdir(parents=True)
+    pending = folder / "name.tmp"
+    pending.write_text(name.strip(), encoding="utf-8")
+    pending.replace(folder / "name.txt")
+    raise web.HTTPSeeOther(location=f"/studio/session/{folder.name}")
+
+
+@routes.get("/studio/session/{session_id}")
+async def open_session(request):
+    folder = session_directory(request.match_info["session_id"])
+    name = "Previous images" if folder == OUTPUT else (folder / "name.txt").read_text(encoding="utf-8")
+    page = (ROOT / "studio.html").read_text(encoding="utf-8").replace("{{session_name}}", escape(name))
+    return web.Response(text=page, content_type="text/html", headers={"Cache-Control": "no-store"})
+
+
+@routes.get("/studio/style.css")
+async def stylesheet(request):
+    return web.FileResponse(ROOT / "style.css")
 
 
 @routes.get("/studio/api/models")
@@ -90,7 +142,8 @@ async def models(request):
 @routes.post("/studio/api/generate")
 async def generate(request):
     body = await request.json()
-    return await submit(request, body.get("prompt"), body.get("model", "fp8"))
+    folder = session_directory(body.get("session", "previous"))
+    return await submit(request, body.get("prompt"), body.get("model", "fp8"), folder=folder)
 
 
 @routes.post("/studio/api/edit")
@@ -99,7 +152,8 @@ async def edit(request):
     source = body.get("source")
     if not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{32}_\d+_\.png", source):
         raise web.HTTPBadRequest(text="Choose an image from the studio gallery.")
-    path = OUTPUT / source
+    folder = session_directory(body.get("session", "previous"))
+    path = folder / source
     try:
         parent = image_info(path, path.stat().st_mtime)
     except (OSError, ValueError, KeyError):
@@ -110,7 +164,7 @@ async def edit(request):
     return await submit(request, body.get("prompt"), model, parent)
 
 
-async def submit(request, prompt, model, parent=None):
+async def submit(request, prompt, model, parent=None, *, folder=OUTPUT):
     prompt = prompt.strip() if isinstance(prompt, str) else ""
     if not prompt or len(prompt) > 8000 or not isinstance(model, str) or model not in installed_models():
         raise web.HTTPBadRequest(text="Enter a prompt and choose an installed model.")
@@ -122,7 +176,11 @@ async def submit(request, prompt, model, parent=None):
     if parent:
         source = parent["file"]
         info.update(parent=source, original=parent.get("original", source))
-    payload = {"prompt": workflow(prompt, model, seed, run_id, source),
+        folder = OUTPUT.parent / parent["subfolder"]
+    relative = folder.relative_to(OUTPUT)
+    output_prefix = (relative / run_id).as_posix()
+    reference = (relative / source).as_posix() if source else None
+    payload = {"prompt": workflow(prompt, model, seed, output_prefix, reference),
                "extra_data": {"extra_pnginfo": {"imagemagic": info}}}
     port = request.transport.get_extra_info("sockname")[1]
     async with ClientSession() as session:
@@ -134,13 +192,15 @@ async def submit(request, prompt, model, parent=None):
 def image_info(path, modified):
     with Image.open(path) as image:
         info = json.loads(image.info["imagemagic"])
-    return {**info, "file": path.name, "seconds": round(max(0, modified - info["submitted"]), 1)}
+    return {**info, "file": path.name, "subfolder": path.parent.relative_to(OUTPUT.parent).as_posix(),
+            "seconds": round(max(0, modified - info["submitted"]), 1)}
 
 
 @routes.get("/studio/api/gallery")
 async def gallery(request):
     items = []
-    for path in OUTPUT.glob("*.png"):
+    folder = session_directory(request.query.get("session", "previous"))
+    for path in folder.glob("*.png"):
         try:
             items.append(image_info(path, path.stat().st_mtime))
         except (OSError, ValueError, KeyError):

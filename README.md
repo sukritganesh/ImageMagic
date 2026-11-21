@@ -2,6 +2,10 @@
 
 ImageMagic is a local image generation and editing studio for Windows. Type a prompt to generate a 1024 × 1024 image with FLUX.2 Klein 4B. The three-column gallery keeps the original and its edits together. ComfyUI runs inference on your machine.
 
+The home page lists your sessions. Enter a name and choose **Create session**, or open an existing session to return to its gallery. Use **All sessions** to go back. You can bookmark a session or open several in separate tabs.
+
+Images created before sessions appear together in **Previous images**, including their edits. New sessions keep their images and a small name file in separate folders under the gallery backup directory.
+
 ## Install and run
 
 Use Windows 11 x64 with an NVIDIA GPU and a driver compatible with the ComfyUI NVIDIA portable build. The studio has been tested on an RTX 4090 Laptop GPU with 16 GB of VRAM and 64 GB of system RAM. Setup uses Windows PowerShell, `curl.exe`, and `tar.exe`. The portable build includes Python.
