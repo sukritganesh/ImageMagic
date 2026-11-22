@@ -1,15 +1,14 @@
 import json
-import runpy
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from PIL import Image, PngImagePlugin
+from studio_fixture import load_studio
 
 
 class SessionTests(unittest.IsolatedAsyncioTestCase):
@@ -26,8 +25,7 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
             "folder_paths": SimpleNamespace(get_output_directory=lambda: temp.name, get_filename_list=files.__getitem__),
             "server": SimpleNamespace(PromptServer=SimpleNamespace(instance=SimpleNamespace(routes=routes, prompt_queue=queue))),
         }
-        with patch.dict(sys.modules, modules):
-            runpy.run_path(str(Path(__file__).resolve().parents[1] / "custom_nodes/imagemagic_studio/__init__.py"))
+        self.studio = load_studio(modules)
 
         async def record_prompt(request):
             self.queued = await request.json()
@@ -69,6 +67,77 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.get(f"/studio/api/sessions/{session}/deletion")
         self.assertEqual(response.status, 200)
         return await response.json()
+
+    async def test_catalog_upgrades_v1_in_place_and_reopens_it(self):
+        sid = "e" * 32
+        folder = self.output / sid
+        filename = self.save_png(folder)
+        (folder / "name.txt").write_text("V1 woodland", encoding="utf-8")
+        before = (folder / filename).read_bytes()
+        self.assertIn("V1 woodland", await (await self.client.get("/studio")).text())
+        catalog = self.studio["Catalog"](self.output)
+        self.assertEqual([(s.id, s.name, s.folder) for s in catalog.sessions()], [(sid, "V1 woodland", folder)])
+        self.assertEqual((await self.client.get("/studio/session/" + sid)).status, 200)
+        self.assertEqual((folder / filename).read_bytes(), before)
+        with catalog.connect() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone(), (1,))
+            self.assertEqual(db.execute("SELECT custom_folder FROM sessions").fetchone(), (None,))
+            db.execute("PRAGMA user_version = 2")
+        with self.assertRaisesRegex(RuntimeError, "newer version"):
+            catalog.sessions()
+        self.assertEqual((folder / filename).read_bytes(), before)
+
+    async def test_external_session_owns_its_versions_and_handles_an_offline_drive(self):
+        parent = self.output.parent / "Artwork"
+        parent.mkdir()
+        (parent / "Coast").mkdir()
+        origin = {"Origin": str(self.client.make_url("/").origin())}
+        picker = SimpleNamespace(returncode=0, communicate=AsyncMock(return_value=(str(parent).encode(), b"")))
+        with patch("asyncio.create_subprocess_exec", new=AsyncMock(return_value=picker)):
+            result = await self.client.post("/studio/api/choose-folder", json={"name": "Coast"}, headers=origin)
+            folder = Path((await result.json())["destination"])
+        self.assertEqual(folder, parent / "Coast (2)")
+        form = {"name": "Coast", "destination": str(folder)}
+        self.assertEqual((await self.client.post("/studio/sessions", data=form)).status, 403)
+        response = await self.client.post("/studio/sessions", data=form, headers=origin, allow_redirects=False)
+        self.assertEqual(response.status, 303)
+        sid = response.headers["Location"].split("/")[-1]
+        busy = await self.client.post("/studio/sessions", data=form, headers=origin, allow_redirects=False)
+        self.assertEqual(busy.status, 409)
+        self.assertEqual(len(self.studio["catalog"].sessions()), 1)
+        image = self.save_png(folder, session_id=sid)
+        unrelated = self.save_png(folder, "c", session_id="f" * 32)
+        url = f"/studio/api/sessions/{sid}/images/"
+        self.assertEqual(await (await self.client.get(url + image)).read(), (folder / image).read_bytes())
+        self.assertEqual((await self.client.get(url + unrelated)).status, 404)
+        result = await self.client.post("/studio/api/edit", json={"session":sid, "source":image, "prompt":"Add a boat"})
+        self.assertEqual(result.status, 200)
+        self.assertEqual(self.queued["prompt"]["14"]["inputs"], {"session_id":sid, "filename":image})
+        self.assertEqual(self.queued["prompt"]["12"]["inputs"]["session_id"], sid)
+        self.pending.append((0, "edit", self.queued["prompt"]))
+        deletion = {"scope":"version", "session":sid, "file":image}
+        self.assertEqual((await self.client.post("/studio/api/delete", json=deletion)).status, 409)
+        preview = await self.deletion_preview(sid)
+        self.assertEqual((preview["images"], preview["folder"]), (1, str(folder)))
+        self.assertEqual((await self.delete_session(sid, preview)).status, 409)
+        self.pending.clear()
+        offline = folder.with_name("disconnected")
+        folder.rename(offline)
+        self.assertEqual(self.studio["catalog"].suggest(parent, "Coast"), parent / "Coast (3)")
+        self.assertIn("Folder unavailable", await (await self.client.get("/studio")).text())
+        self.assertEqual((await self.client.post("/studio/api/generate", json={"session":sid, "prompt":"A boat"})).status, 409)
+        self.assertFalse(folder.exists())
+        folder.mkdir()
+        self.assertEqual((await self.client.get(url + image)).status, 409)
+        folder.rmdir()
+        offline.rename(folder)
+        self.assertEqual((await self.client.post("/studio/api/delete", json=deletion)).status, 200)
+        info = await self.deletion_preview(sid)
+        self.assertEqual((info["images"], info["trashed"]), (0, 1))
+        self.assertEqual((await self.delete_session(sid, info)).status, 200)
+        self.assertTrue((folder / unrelated).exists())
+        self.assertTrue((parent / "Coast").is_dir())
+        self.assertFalse(self.studio["catalog"].sessions())
 
     async def delete_session(self, session, preview):
         return await self.client.post(f"/studio/api/sessions/{session}/delete", json=preview)

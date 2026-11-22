@@ -81,6 +81,7 @@ async function json(url, options){
   return response.json();
 }
 function imageUrl(item){
+  if(item.subfolder===null) return '/studio/api/sessions/'+encodeURIComponent(sessionId)+'/images/'+encodeURIComponent(item.file);
   return '/view?'+new URLSearchParams({filename:item.file,subfolder:item.subfolder,type:'output'});
 }
 const lightbox=$('lightbox'), stage=$('photoStage'), largePhoto=$('largePhoto');

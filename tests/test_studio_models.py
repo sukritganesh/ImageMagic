@@ -1,14 +1,12 @@
 import json
-import runpy
-import sys
 import tempfile
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from aiohttp import web
 from PIL import Image, PngImagePlugin
+from studio_fixture import load_studio
 
 
 class StudioModelTests(unittest.IsolatedAsyncioTestCase):
@@ -24,9 +22,7 @@ class StudioModelTests(unittest.IsolatedAsyncioTestCase):
             "folder_paths": SimpleNamespace(get_output_directory=lambda: temp.name, get_filename_list=available.__getitem__),
             "server": SimpleNamespace(PromptServer=SimpleNamespace(instance=SimpleNamespace(routes=web.RouteTableDef()))),
         }
-        source = Path(__file__).resolve().parents[1] / "custom_nodes/imagemagic_studio/__init__.py"
-        with patch.dict(sys.modules, modules):
-            self.studio = runpy.run_path(str(source))
+        self.studio = load_studio(modules)
 
     def test_9b_requires_its_encoder_and_keeps_4b_first(self):
         installed = self.studio["installed_models"]

@@ -11,18 +11,67 @@
   <form class="create-session" action="/studio/sessions" method="post">
     <label for="sessionName">New session name</label>
     <div><input id="sessionName" name="name" required maxlength="80" pattern=".*\S.*" autocomplete="off" placeholder="e.g. Woodland sketches"><button>Create session</button></div>
+    <div class="location">
+      <input type="hidden" name="destination" id="destination">
+      <span id="saveLocation">Default gallery folder</span>
+      <button type="button" class="quiet" id="chooseFolder">Choose folder…</button>
+      <button type="button" class="quiet" id="useDefault" hidden>Use default</button>
+    </div>
+    <p id="createStatus" role="status"></p>
   </form>
   {{sessions}}
 </main>
 <dialog id="confirmDelete" aria-labelledby="deleteTitle" aria-describedby="deleteExplanation">
   <h2 id="deleteTitle"></h2>
   <p id="deleteExplanation" aria-live="polite"></p>
+  <p id="deleteFolder"></p>
   <div class="confirm-actions">
     <button id="cancelDelete" class="quiet" autofocus>Cancel</button>
     <button id="confirmAction" disabled>Delete permanently</button>
   </div>
 </dialog>
 <script>
+const form = document.querySelector('.create-session');
+const sessionName = document.getElementById('sessionName');
+const destination = document.getElementById('destination');
+const chooseFolder = document.getElementById('chooseFolder');
+const useDefault = document.getElementById('useDefault');
+const createStatus = document.getElementById('createStatus');
+const createButton = form.querySelector('button');
+function setLocation(path) {
+  destination.value = path;
+  document.getElementById('saveLocation').textContent = path || 'Default gallery folder';
+  useDefault.hidden = !path;
+  createStatus.textContent = '';
+}
+useDefault.onclick = () => { setLocation(''); chooseFolder.focus(); };
+chooseFolder.onclick = async () => {
+  if (!sessionName.reportValidity()) return;
+  chooseFolder.disabled = createButton.disabled = true;
+  createStatus.textContent = 'Choose a parent folder in the Windows dialog.';
+  try {
+    const response = await fetch('/studio/api/choose-folder', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name:sessionName.value})
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const result = await response.json();
+    setLocation(result.destination || destination.value);
+  } catch (error) { createStatus.textContent = error.message; }
+  finally { chooseFolder.disabled = createButton.disabled = false; chooseFolder.focus(); }
+};
+form.onsubmit = async event => {
+  event.preventDefault();
+  if (createButton.disabled) return;
+  chooseFolder.disabled = createButton.disabled = true;
+  try {
+    const response = await fetch(form.action, {method:'POST', body:new URLSearchParams(new FormData(form))});
+    if (!response.ok) throw new Error(await response.text());
+    location.assign(response.url);
+  } catch (error) {
+    createStatus.textContent = error.message;
+    chooseFolder.disabled = createButton.disabled = false;
+  }
+};
 const dialog = document.getElementById('confirmDelete');
 const explanation = document.getElementById('deleteExplanation');
 const confirmButton = document.getElementById('confirmAction');
@@ -31,16 +80,18 @@ let selected;
 async function review(session, notice = '') {
   confirmButton.disabled = true;
   session.revision = null;
+  document.getElementById('deleteFolder').textContent = '';
   explanation.textContent = 'Counting images…';
   try {
     const response = await fetch(session.url + '/deletion');
     if (!response.ok) throw new Error(await response.text());
-    const {images, trashed, revision} = await response.json();
+    const {images, trashed, revision, folder} = await response.json();
     if (selected !== session || !dialog.open) return;
     const count = images + (images === 1 ? ' saved image' : ' saved images');
     const trash = trashed ? ' and ' + trashed + ' more in trash' : '';
     explanation.textContent = notice + 'This session contains ' + count + trash +
       '. Each saved version counts as one image. Deleting the session is permanent.';
+    document.getElementById('deleteFolder').textContent = folder;
     session.revision = revision;
     confirmButton.disabled = false;
   } catch (error) {
