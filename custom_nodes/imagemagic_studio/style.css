@@ -3,7 +3,6 @@
 body{margin:0;background:#121410;color:var(--paper);font:16px Inter,"Segoe UI",sans-serif}
 main,header{width:min(1100px,92vw);margin:auto}
 header{display:flex;align-items:center;gap:11px;padding:24px 0;border-bottom:1px solid #353832;font-weight:650}
-.mark{width:24px;height:24px;border-radius:6px;background:repeating-linear-gradient(135deg,var(--lime) 0 4px,#22291d 4px 7px)}
 header a{margin-left:auto;color:var(--muted);font-size:13px;text-decoration:none}
 h1{font-size:clamp(40px,6vw,72px);font-weight:520;letter-spacing:-.065em;margin:42px 0 18px}
 form{border:1px solid #474b42;background:#20231d;border-radius:18px;padding:17px}

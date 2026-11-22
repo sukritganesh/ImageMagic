@@ -45,6 +45,18 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 303)
         return response.headers["Location"].rsplit("/", 1)[1]
 
+    async def test_home_and_session_link_to_the_served_favicon(self):
+        icon_path = "/studio/favicon.svg"
+        session = await self.create_session("Studio icons")
+        for page_path in ("/studio", f"/studio/session/{session}"):
+            page = await (await self.client.get(page_path)).text()
+            self.assertIn('rel="icon"', page)
+            self.assertIn(f'href="{icon_path}"', page)
+        icon = await self.client.get(icon_path)
+        self.assertEqual(icon.status, 200)
+        self.assertEqual(icon.content_type, "image/svg+xml")
+        self.assertIn("<svg ", await icon.text())
+
     def save_png(self, folder, digit="a", **lineage):
         name = digit * 32 + "_00001_.png"
         folder.mkdir(parents=True, exist_ok=True)

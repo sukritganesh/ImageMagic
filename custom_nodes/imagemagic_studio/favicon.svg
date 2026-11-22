@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="stripes" gradientUnits="userSpaceOnUse" x2="7" y2="0"
+                    gradientTransform="rotate(45)" spreadMethod="repeat">
+      <stop offset="57.142857%" stop-color="#d4fc76"/>
+      <stop offset="57.142857%" stop-color="#22291d"/>
+    </linearGradient>
+  </defs>
+  <rect width="24" height="24" rx="6" fill="url(#stripes)"/>
+</svg>
