@@ -6,6 +6,12 @@ Use a focused branch from current `main`. Keep changes readable and scoped to th
 
 ## Validation
 
+After setup, run the tests from the repository root in PowerShell.
+
+```powershell
+.\ComfyUI_windows_portable\python_embeded\python.exe -m unittest discover -s tests
+```
+
 Exercise the affected path before submitting. For a UI change, check the interaction in the browser, including keyboard navigation where relevant. For an installer change, check first-time setup and rerunning it. For documentation, verify commands and relative links. Run `git diff --check` and review the staged patch.
 
 ## Commits and pull requests

@@ -55,6 +55,10 @@ If you prefer to download in your browser, save `flux-2-klein-9b-fp8.safetensors
 
 ## Project layout
 
-Edit the studio backend and browser UI in [custom_nodes/imagemagic_studio](custom_nodes/imagemagic_studio/). The launcher copies these files into the portable installation when starting the server. Restart the local ComfyUI process after changing the source. For contributor conventions, see [CONTRIBUTING.md](CONTRIBUTING.md).
+- [sessions.html](custom_nodes/imagemagic_studio/sessions.html) — session list and creation form.
+- [studio.html](custom_nodes/imagemagic_studio/studio.html) — prompt editor, gallery, and image viewer.
+- [storage.py](custom_nodes/imagemagic_studio/storage.py) — SQLite session catalog and save locations.
+
+The launcher copies the studio files into the portable installation when starting the server. Restart the local ComfyUI process after changing the source. For contributor conventions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Setup downloads third-party software and model weights directly from their publishers. Their respective licenses apply. [ComfyUI release](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.46.0) · [FLUX.2 Klein 4B model card](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) · [ComfyUI encoder and VAE](https://huggingface.co/Comfy-Org/Flux-2-Klein-4B)
