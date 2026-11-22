@@ -32,17 +32,36 @@ def ready(port):
         return False
 
 
-def running_port():
+def running_studio():
     for conn in psutil.net_connections(kind="tcp4"):
         if conn.status != psutil.CONN_LISTEN or conn.laddr.ip != HOST or not conn.pid:
             continue
         try:
-            executable = Path(psutil.Process(conn.pid).exe())
+            process = psutil.Process(conn.pid)
+            executable = Path(process.exe())
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
         if executable == PYTHON and ready(conn.laddr.port):
-            return conn.laddr.port
+            return conn.laddr.port, process
     return None
+
+
+def running_port():
+    studio = running_studio()
+    return studio[0] if studio else None
+
+
+def stop_studio():
+    studio = running_studio()
+    if not studio:
+        return
+    port, process = studio
+    with urllib.request.urlopen(f"http://{HOST}:{port}/queue", timeout=5) as response:
+        queue = json.load(response)
+    if queue["queue_running"] or queue["queue_pending"]:
+        raise SystemExit("ImageMagic still has jobs. Wait for them to finish and try again.")
+    process.terminate()
+    process.wait(timeout=15)
 
 
 def port_available(port):
@@ -95,6 +114,9 @@ def start_studio():
 def main():
     # Serialize discovery and startup across installs, including simultaneous double-clicks.
     with FileLock(Path(tempfile.gettempdir()) / "ImageMagic-launcher.lock"):
+        if "--stop" in sys.argv:
+            stop_studio()
+            return
         port = running_port() or start_studio()
     url = f"http://{HOST}:{port}/studio"
     print(url, flush=True)

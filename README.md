@@ -10,6 +10,10 @@ Images created before sessions appear together in **Previous images**, including
 
 ## Install and run
 
+**Windows installer:** Download **ImageMagic-Setup-1.0.0.exe** from the [GitHub releases](https://github.com/sukritganesh/ImageMagic/releases), run it, and open **ImageMagic** from Start. Press **Enter** to download the default models and open the studio. Allow 25 GB of free space. See the [Windows setup guide](docs/WINDOWS-SETUP.md) for first-run instructions, optional models, and uninstall behavior.
+
+### Install from source
+
 Use Windows 11 x64 with an NVIDIA GPU and a driver compatible with the ComfyUI NVIDIA portable build. The studio has been tested on an RTX 4090 Laptop GPU with 16 GB of VRAM and 64 GB of system RAM. Setup uses Windows PowerShell, `curl.exe`, and `tar.exe`. The portable build includes Python.
 
 From PowerShell in a writable folder:

@@ -5,9 +5,20 @@ $runtime = Join-Path $PSScriptRoot 'ComfyUI_windows_portable'
 $cache = Join-Path $PSScriptRoot '.downloads'
 $null = New-Item -ItemType Directory -Force $cache
 
+function Get-Sha256([string]$Path) {
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '')
+    } finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
+
 function Get-VerifiedFile([string]$Uri, [string]$Path, [string]$Digest) {
     if (Test-Path -LiteralPath $Path) {
-        if ((Get-FileHash -LiteralPath $Path).Hash -ne $Digest) {
+        if ((Get-Sha256 $Path) -ne $Digest) {
             throw "Unexpected checksum for $Path. Move the file aside and rerun setup."
         }
         return
@@ -15,10 +26,10 @@ function Get-VerifiedFile([string]$Uri, [string]$Path, [string]$Digest) {
     $null = New-Item -ItemType Directory -Force (Split-Path $Path)
     $part = "$Path.part"
     Write-Host "Downloading $(Split-Path $Path -Leaf)"
-    if (!(Test-Path -LiteralPath $part) -or (Get-FileHash -LiteralPath $part).Hash -ne $Digest) {
+    if (!(Test-Path -LiteralPath $part) -or (Get-Sha256 $part) -ne $Digest) {
         & curl.exe --fail --location --retry 3 --continue-at - --output $part $Uri
         if ($LASTEXITCODE -ne 0) { throw 'Download interrupted. Rerun setup to resume.' }
-        if ((Get-FileHash -LiteralPath $part).Hash -ne $Digest) {
+        if ((Get-Sha256 $part) -ne $Digest) {
             throw "Checksum mismatch. Remove $part and rerun setup."
         }
     }
@@ -81,14 +92,14 @@ hf_hub_download(repo, filename, revision=revision, local_dir=folder, token=token
                 }
             }
         }
-        if ((Get-FileHash -LiteralPath $candidate).Hash -ne '865ba09f5b4c3cbd3468a4bd3acb9fcb2f8740c54317482f0bcd4ed1d3655cee') {
+        if ((Get-Sha256 $candidate) -ne '865ba09f5b4c3cbd3468a4bd3acb9fcb2f8740c54317482f0bcd4ed1d3655cee') {
             throw "Unexpected checksum for $candidate. Move the file aside and rerun setup."
         }
         if ($candidate -ne $destination) { Move-Item -LiteralPath $candidate -Destination $destination }
         $encoder = 'qwen_3_8b_fp8mixed.safetensors'
         Get-VerifiedFile "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/1138ce884c8e977cdacacbe779784fec4426bb3f/split_files/text_encoders/$encoder" "$models/text_encoders/$encoder" 'abad16806e0cbabc54e0325d6565847443fe396d5f0be38bb3cd3fe75a1201d6'
     }
-    Write-Host 'Ready. Double-click Start ImageMagic.cmd.'
+    Write-Host 'Setup complete. ImageMagic is ready to open.'
 } finally {
     $lock.Dispose()
 }
