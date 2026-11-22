@@ -140,6 +140,11 @@ async def stylesheet(request):
     return web.FileResponse(ROOT / "style.css")
 
 
+@routes.get("/studio/favicon.svg")
+async def favicon(request):
+    return web.FileResponse(ROOT / "favicon.svg", headers={"Content-Type": "image/svg+xml"})
+
+
 @routes.get("/studio/api/models")
 async def models(request):
     return web.json_response(installed_models())
