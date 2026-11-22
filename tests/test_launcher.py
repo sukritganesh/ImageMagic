@@ -1,10 +1,11 @@
+import io
 import runpy
 import socket
 import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 @unittest.skipUnless(sys.platform == "win32", "The launcher uses the Windows portable runtime")
@@ -36,6 +37,21 @@ class LauncherTests(unittest.TestCase):
             port = listener.getsockname()[1]
             self.assertFalse(available(port))
         self.assertTrue(available(port))
+
+    def test_maintenance_stops_only_the_idle_server_for_this_installation(self):
+        stop = self.launcher["stop_studio"]
+        process = Mock()
+        with patch.dict(stop.__globals__, running_studio=lambda: (8189, process)), \
+             patch("urllib.request.urlopen") as get_queue:
+            for queue in (b'{"queue_running":[1],"queue_pending":[]}', b'{"queue_running":[],"queue_pending":[1]}'):
+                get_queue.return_value = io.BytesIO(queue)
+                with self.assertRaises(SystemExit):
+                    stop()
+                process.terminate.assert_not_called()
+            get_queue.return_value = io.BytesIO(b'{"queue_running":[],"queue_pending":[]}')
+            stop()
+            get_queue.assert_called_with("http://127.0.0.1:8189/queue", timeout=5)
+            process.terminate.assert_called_once()
 
 
 if __name__ == "__main__":
