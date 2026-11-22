@@ -28,7 +28,7 @@ Source: "..\launch_studio.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Open ImageMagic.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "ImageMagic.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\docs\WINDOWS-SETUP.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\custom_nodes\imagemagic_studio\__init__.py"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion
+Source: "..\custom_nodes\imagemagic_studio\*.py"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion
 Source: "..\custom_nodes\imagemagic_studio\*.html"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion
 Source: "..\custom_nodes\imagemagic_studio\style.css"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion
 Source: "..\custom_nodes\imagemagic_studio\favicon.svg"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion

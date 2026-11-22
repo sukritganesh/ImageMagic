@@ -4,9 +4,11 @@ ImageMagic is a local image generation and editing studio for Windows. Type a pr
 
 The home page lists your sessions. Enter a name and choose **Create session**, or open an existing session to return to its gallery. Use **All sessions** to go back. You can bookmark a session or open several in separate tabs.
 
+With the current source version, you can also choose **Choose folder…** before creating a session. Select a parent folder in the Windows dialog. The form shows the new session folder it will create there (for example, `D:\Artwork\Coast`). If that name is taken, it suggests `Coast (2)`. Choose **Use default** to save in the usual gallery. Originals, edits, and that session’s trash use the selected location. If a drive is disconnected, reconnect it at the same path to reopen the session.
+
 Choose **Delete** beside a session to review its image count. Each original and each saved edit counts as one image. The confirmation also shows how many more images are in that session’s trash. Choose **Delete permanently** to remove the session and both sets of images.
 
-Images created before sessions appear together in **Previous images**, including their edits. New sessions keep their images and a small name file in separate folders under the gallery backup directory.
+The first time you open the updated studio, it registers existing named sessions in its local SQLite catalog. Their folders and bookmark URLs stay the same. Images created before named sessions still appear under **Previous images**.
 
 ## Install and run
 
@@ -49,7 +51,7 @@ If you prefer to download in your browser, save `flux-2-klein-9b-fp8.safetensors
 - The card and details show which model made the selected version. Edits use the source version's model.
 - Open the caption to delete the selected version or the entire card. Each version is a complete PNG, so later edits still work if you delete their source. Deleting the last version removes the card. Click outside a dialog or press Escape to return to the previous view.
 - Deleted PNGs stay in a batch folder inside `.trash` in that session’s output folder. To restore them, move them back to the folder containing `.trash` with their original filenames. To reclaim disk space, choose **Empty trash** next to the gallery count. Review the number of images and choose **Delete permanently** to empty that session’s trash.
-- Back up `ComfyUI_windows_portable/ComfyUI/output/ImageMagic/` to keep your gallery. The PNG metadata stores the prompt, model, seed, submission time, and version relationships. Preserve the filenames and metadata when moving images.
+- To back up, stop the studio and copy `ComfyUI_windows_portable/ComfyUI/output/ImageMagic/` (including `imagemagic.sqlite3`) and each custom session folder. Restore custom folders at their original paths, including their `.imagemagic-session` files. The PNG metadata stores the prompt, model, seed, submission time, and version relationships. Preserve filenames and metadata.
 
 ## Project layout
 

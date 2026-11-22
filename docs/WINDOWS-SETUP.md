@@ -22,5 +22,5 @@ For Compact and Base, open PowerShell in the install folder and run `.\setup.ps1
 
 - To update or repair the studio files, run the installer again and choose the same folder. Let any queued images finish first. Setup stops the idle server for that installation. Open ImageMagic from Start again after setup.
 - For a missing model or a checksum error, run `.\setup.ps1` in the install folder. Follow the error for the specific file, then retry. Startup diagnostics are in `studio.log` in that folder.
-- To back up sessions, copy `ComfyUI_windows_portable\ComfyUI\output\ImageMagic\` from the install folder. Preserve the filenames and folder structure.
+- To back up sessions, stop the studio and copy `ComfyUI_windows_portable\ComfyUI\output\ImageMagic\` from the install folder, including the SQLite catalog if present. If your version supports custom save locations, also copy each custom session folder in full and restore it to the same path. Preserve the filenames and folder structure.
 - To uninstall, use **Settings → Apps → Installed apps → ImageMagic → Uninstall**. The uninstaller removes the studio launcher and shortcut. It keeps the downloaded runtime, models, cache, and gallery for a reinstall. To reclaim all that space, back up your gallery first, then remove the remaining dedicated install folder yourself.

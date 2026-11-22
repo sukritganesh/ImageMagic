@@ -82,8 +82,13 @@ figcaption,.detail label{font-size:13px;color:var(--muted);margin-top:6px}
 .create-session div{display:flex;align-items:center;gap:12px}
 .create-session input{min-width:0;flex:1;border:0;background:transparent;color:var(--paper);padding:8px 4px;font:inherit}
 .create-session button{flex:none}
+.create-session .location{margin-top:12px;border-top:1px solid #353832;padding-top:8px;flex-wrap:wrap}
+#saveLocation,#deleteFolder{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+#createStatus:empty,#deleteFolder:empty{display:none}
 .session-list{list-style:none;margin:28px 0 0;padding:0}
 .session-list li{display:flex;align-items:center;gap:20px;border-bottom:1px solid #353832}
+.session-list .offline{align-items:flex-start;flex-direction:column;gap:4px;padding:19px 4px;overflow-wrap:anywhere}
+.offline small{color:var(--muted)}
 .session-list a{display:flex;align-items:center;flex:1;min-width:0;justify-content:space-between;gap:16px;padding:19px 4px;color:var(--paper);text-decoration:none;overflow-wrap:anywhere}
 .session-list .delete-link{padding:10px 4px}
 #deleteTitle{overflow-wrap:anywhere}
