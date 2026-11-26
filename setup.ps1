@@ -1,4 +1,4 @@
-param([switch]$AllModels, [switch]$Klein9B)
+param([switch]$AllModels, [switch]$Klein9B, [switch]$ZImageTurbo)
 
 $ErrorActionPreference = 'Stop'
 $runtime = Join-Path $PSScriptRoot 'ComfyUI_windows_portable'
@@ -61,6 +61,11 @@ try {
     if ($AllModels) {
         Get-VerifiedFile "$bfl/FLUX.2-klein-4b-nvfp4/resolve/1db2b2f776c24b76f1122e5f69ab1949fc620068/flux-2-klein-4b-nvfp4.safetensors" "$models/diffusion_models/flux-2-klein-4b-nvfp4.safetensors" 'd8c5007b6a3bbbdfd38538bbcef5101a55dfde81894f58d2e3c8701cdef3542b'
         Get-VerifiedFile "$bfl/FLUX.2-klein-base-4b-fp8/resolve/103db268c10d4d3921101b46057671f9ac460da6/flux-2-klein-base-4b-fp8.safetensors" "$models/diffusion_models/flux-2-klein-base-4b-fp8.safetensors" '44bab3a86fe98b85d21dd2a4729ebdc3ae51fb8a39f76e457e18c724219e6840'
+    }
+    if ($ZImageTurbo) {
+        $zImage = 'https://huggingface.co/Comfy-Org/Z-Image-Turbo/resolve/6fc90a3b1b653e935a0d175e260736de25b84df5/split_files'
+        Get-VerifiedFile "$zImage/diffusion_models/z_image_turbo_bf16.safetensors" "$models/diffusion_models/z_image_turbo_bf16.safetensors" '2407613050b809ffdff18a4ac99af83ea6b95443ecebdf80e064a79c825574a6'
+        Get-VerifiedFile "$zImage/vae/ae.safetensors" "$models/vae/ae.safetensors" 'afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38'
     }
     if ($Klein9B) {
         $checkpoint = 'flux-2-klein-9b-fp8.safetensors'

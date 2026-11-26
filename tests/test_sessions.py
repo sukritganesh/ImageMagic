@@ -20,7 +20,8 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         self.running = []
         self.pending = []
         queue = SimpleNamespace(get_current_queue_volatile=lambda: (self.running, self.pending))
-        files = {"diffusion_models": ["flux-2-klein-4b-fp8.safetensors"], "text_encoders": ["qwen_3_4b.safetensors"]}
+        files = {"diffusion_models": ["flux-2-klein-4b-fp8.safetensors"], "text_encoders": ["qwen_3_4b.safetensors"],
+                 "vae": ["flux2-vae.safetensors"]}
         modules = {
             "folder_paths": SimpleNamespace(get_output_directory=lambda: temp.name, get_filename_list=files.__getitem__),
             "server": SimpleNamespace(PromptServer=SimpleNamespace(instance=SimpleNamespace(routes=routes, prompt_queue=queue))),
@@ -42,6 +43,14 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.post("/studio/sessions", data={"name": name}, allow_redirects=False)
         self.assertEqual(response.status, 303)
         return response.headers["Location"].rsplit("/", 1)[1]
+
+    async def test_comparison_seed_reaches_sampler_and_png_metadata(self):
+        url = "/studio/api/generate"
+        self.assertEqual((await self.client.post(url, json={"prompt": "prairie", "seed": 0})).status, 200)
+        self.assertEqual(self.queued["prompt"]["6"]["inputs"]["noise_seed"], 0)
+        self.assertEqual(self.queued["extra_data"]["extra_pnginfo"]["imagemagic"]["seed"], 0)
+        for invalid in (-1, 2**53, True, "0"):
+            self.assertEqual((await self.client.post(url, json={"prompt": "prairie", "seed": invalid})).status, 400)
 
     async def test_home_and_session_link_to_the_served_favicon(self):
         icon_path = "/studio/favicon.svg"

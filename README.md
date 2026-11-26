@@ -43,12 +43,16 @@ After the default setup, run the optional installer from the repository root. It
 
 If you prefer to download in your browser, save `flux-2-klein-9b-fp8.safetensors` from the model page to `ComfyUI_windows_portable/ComfyUI/models/diffusion_models/` and run `.\setup.ps1 -Klein9B`. Setup verifies that file and downloads the encoder. Refresh the studio to select **Klein 9B · FP8**.
 
+### Add Z-Image-Turbo
+
+From the source checkout, run `.\setup.ps1 -ZImageTurbo` and refresh the studio. Choose **Z-Image-Turbo · BF16** to generate 1024 × 1024 images in eight steps. The setup reuses Klein’s Qwen encoder and downloads about 12.6 GB for the checkpoint and decoder. Instruction edits of these images use Klein 4B FP8. [ComfyUI workflow](https://docs.comfy.org/tutorials/image/z-image/z-image-turbo)
+
 ## Use the gallery
 
 - Choose a model and enter a prompt. Klein 4B FP8 is the four-step default. Optional Klein 9B FP8 also uses four steps. Compact uses a smaller 4B checkpoint and encodes text on the CPU. Base uses 50 steps.
 - Click a picture to expand it. Scroll or use **+ / −** to zoom, drag to pan, and use **← / →** to compare versions. Escape or a click outside the picture returns you to the previous view.
 - Click the caption to read the full prompt or edit the selected version. Describe the change and choose **Generate edit**. The selected image serves as a visual reference. The new version appears on the same card.
-- The card and details show which model made the selected version. Edits use the source version's model.
+- The card and details show which model made the selected version. Klein images use their original model for edits.
 - Open the caption to delete the selected version or the entire card. Each version is a complete PNG, so later edits still work if you delete their source. Deleting the last version removes the card. Click outside a dialog or press Escape to return to the previous view.
 - Deleted PNGs stay in a batch folder inside `.trash` in that session’s output folder. To restore them, move them back to the folder containing `.trash` with their original filenames. To reclaim disk space, choose **Empty trash** next to the gallery count. Review the number of images and choose **Delete permanently** to empty that session’s trash.
 - To back up, stop the studio and copy `ComfyUI_windows_portable/ComfyUI/output/ImageMagic/` (including `imagemagic.sqlite3`) and each custom session folder. Restore custom folders at their original paths, including their `.imagemagic-session` files. The PNG metadata stores the prompt, model, seed, submission time, and version relationships. Preserve filenames and metadata.

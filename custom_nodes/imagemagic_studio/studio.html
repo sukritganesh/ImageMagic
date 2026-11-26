@@ -238,6 +238,7 @@ function renderDetails(){
   $('versionLabel').textContent=(item.parent?'Version '+(group.index+1):'Original')+' · '+item.model;
   $('promptHeading').textContent=item.parent?'Edit instruction':'Prompt';
   $('description').textContent=item.prompt;
+  $('saveEdit').textContent=item.edit_model_label?'Edit with '+item.edit_model_label+' ↗':'Generate edit ↗';
   $('editStatus').textContent=editMessages.get(group.root) || '';
   $('deleteVersion').textContent=group.versions.length===1?'Delete image':'Delete this version';
   $('deleteCard').hidden=group.versions.length===1;
