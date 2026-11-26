@@ -1,4 +1,4 @@
-"""Local prompt gallery for the installed FLUX.2 Klein checkpoints."""
+"""Local image generation and editing studio for ComfyUI."""
 import asyncio
 import hashlib
 import json
@@ -28,6 +28,9 @@ class Model(NamedTuple):
     label: str
     checkpoint: str
     encoder: str = "qwen_3_4b.safetensors"
+    vae: str = "flux2-vae.safetensors"
+    clip_type: str = "flux2"
+    edit_with: str | None = None
 
 
 MODELS = {
@@ -35,26 +38,49 @@ MODELS = {
     "9b-fp8": Model("Klein 9B · FP8", "flux-2-klein-9b-fp8.safetensors", "qwen_3_8b_fp8mixed.safetensors"),
     "nvfp4": Model("Klein 4B · Compact", "flux-2-klein-4b-nvfp4.safetensors"),
     "base": Model("Klein 4B Base · FP8", "flux-2-klein-base-4b-fp8.safetensors"),
+    "z-image-turbo": Model("Z-Image-Turbo · BF16", "z_image_turbo_bf16.safetensors",
+                          vae="ae.safetensors", clip_type="lumina2", edit_with="fp8"),
 }
 
 
 def installed_models():
     checkpoints = folder_paths.get_filename_list("diffusion_models")
     encoders = folder_paths.get_filename_list("text_encoders")
+    vaes = folder_paths.get_filename_list("vae")
     return {key: model.label for key, model in MODELS.items()
-            if model.checkpoint in checkpoints and model.encoder in encoders}
+            if model.checkpoint in checkpoints and model.encoder in encoders and model.vae in vaes}
 
 
 def workflow(prompt, model, seed, run_id, source=None, *, external_session=None):
     def node(kind, **inputs):
         return {"class_type": kind, "inputs": inputs}
 
+    spec = MODELS[model]
     graph = {
-        "1": node("UNETLoader", unet_name=MODELS[model].checkpoint, weight_dtype="default"),
-        "2": node("CLIPLoader", clip_name=MODELS[model].encoder, type="flux2",
+        "1": node("UNETLoader", unet_name=spec.checkpoint, weight_dtype="default"),
+        "2": node("CLIPLoader", clip_name=spec.encoder, type=spec.clip_type,
                   device="cpu" if model == "nvfp4" else "default"),
-        "3": node("VAELoader", vae_name="flux2-vae.safetensors"),
+        "3": node("VAELoader", vae_name=spec.vae),
         "4": node("CLIPTextEncode", clip=["2", 0], text=prompt),
+        "11": node("VAEDecode", samples=["10", 0], vae=["3", 0]),
+        "12": node("SaveImage", images=["11", 0], filename_prefix=f"ImageMagic/{run_id}"),
+    }
+    if external_session:
+        graph["12"] = node("ImageMagicSaveSessionImage", images=["11", 0], session_id=external_session, run_id=run_id)
+    if model == "z-image-turbo":
+        if source:
+            raise ValueError("Z-Image-Turbo generates originals. Use Klein for instruction edits.")
+        graph.update({
+            "5": node("EmptySD3LatentImage", width=1024, height=1024, batch_size=1),
+            "6": node("ModelSamplingAuraFlow", model=["1", 0], shift=3.0),
+            "7": node("ConditioningZeroOut", conditioning=["4", 0]),
+            "10": node("KSampler", model=["6", 0], positive=["4", 0], negative=["7", 0],
+                       latent_image=["5", 0], seed=seed, steps=8, cfg=1.0,
+                       sampler_name="res_multistep", scheduler="simple", denoise=1.0),
+        })
+        return graph
+
+    graph.update({
         "5": node("EmptyFlux2LatentImage", width=1024, height=1024, batch_size=1),
         "6": node("RandomNoise", noise_seed=seed),
         "7": node("KSamplerSelect", sampler_name="euler"),
@@ -62,11 +88,7 @@ def workflow(prompt, model, seed, run_id, source=None, *, external_session=None)
         "9": node("BasicGuider", model=["1", 0], conditioning=["4", 0]),
         "10": node("SamplerCustomAdvanced", noise=["6", 0], guider=["9", 0], sampler=["7", 0],
                    sigmas=["8", 0], latent_image=["5", 0]),
-        "11": node("VAEDecode", samples=["10", 0], vae=["3", 0]),
-        "12": node("SaveImage", images=["11", 0], filename_prefix=f"ImageMagic/{run_id}"),
-    }
-    if external_session:
-        graph["12"] = node("ImageMagicSaveSessionImage", images=["11", 0], session_id=external_session, run_id=run_id)
+    })
     if model == "base":
         graph["13"] = node("CLIPTextEncode", clip=["2", 0], text="")
         graph["9"] = node("CFGGuider", model=["1", 0], positive=["4", 0], negative=["13", 0], cfg=4.0)
@@ -215,7 +237,7 @@ async def generate(request):
     body = await request.json()
     async with queue_lock:
         session = find_session(body.get("session", "previous"))
-        return await submit(request, body.get("prompt"), body.get("model", "fp8"), session=session)
+        return await submit(request, body.get("prompt"), body.get("model", "fp8"), session=session, seed=body.get("seed"))
 
 
 @routes.post("/studio/api/edit")
@@ -240,16 +262,23 @@ async def queue_edit(request, body):
     model = parent.get("model_id")
     if model is None:  # Older studio PNGs store only the display name.
         model = next((key for key, spec in MODELS.items() if spec.label == parent["model"]), None)
+    if model in MODELS and MODELS[model].edit_with:
+        model = MODELS[model].edit_with
+        if model not in installed_models():
+            raise web.HTTPBadRequest(text=f"Install {MODELS[model].label} to edit this image.")
     return await submit(request, body.get("prompt"), model, parent, session=session)
 
 
-async def submit(request, prompt, model, parent=None, *, session):
+async def submit(request, prompt, model, parent=None, *, session, seed=None):
     folder = session_folder(session)
     prompt = prompt.strip() if isinstance(prompt, str) else ""
     if not prompt or len(prompt) > 8000 or not isinstance(model, str) or model not in installed_models():
         raise web.HTTPBadRequest(text="Enter a prompt and choose an installed model.")
     run_id = uuid.uuid4().hex
-    seed = secrets.randbits(52)
+    if seed is None:
+        seed = secrets.randbits(52)
+    elif type(seed) is not int or not 0 <= seed < 2**53:
+        raise web.HTTPBadRequest(text="Use a nonnegative seed below 2^53.")
     info = {"prompt": prompt, "model": MODELS[model].label, "model_id": model,
             "seed": seed, "submitted": time.time()}
     source = None
@@ -280,6 +309,9 @@ def image_info(path, modified):
 def cached_image_info(path, modified):
     with Image.open(path) as image:
         info = json.loads(image.info["imagemagic"])
+    model = MODELS.get(info.get("model_id"))
+    if model and model.edit_with:
+        info["edit_model_label"] = MODELS[model.edit_with].label
     subfolder = None
     if path.is_relative_to(OUTPUT):
         subfolder = path.parent.relative_to(OUTPUT.parent).as_posix()

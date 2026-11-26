@@ -16,6 +16,8 @@ You need internet for the first download. The installer includes the studio and 
 
 ## Optional models
 
+On builds that include **Z-Image-Turbo**, run `.\setup.ps1 -ZImageTurbo` from the install folder and refresh the studio. The eight-step BF16 model adds about 12.6 GB and shares the default text encoder. Select it in the model dropdown to generate an original. The edit dialog uses Klein 4B FP8 for instruction edits.
+
 For Compact and Base, open PowerShell in the install folder and run `.\setup.ps1 -AllModels` (about 6.6 GB extra). For **Klein 9B FP8**, first request access with your own Hugging Face account under the [publisher's non-commercial license](https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8). Run `.\setup.ps1 -Klein9B` in the same folder (about 18.1 GB extra). It uses your local Hugging Face login or prompts for a read token. Refresh the studio after setup. The [model instructions](https://github.com/sukritganesh/ImageMagic#add-klein-9b-fp8) include the manual-download option.
 
 ## Reinstall, uninstall, and recover

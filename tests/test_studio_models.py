@@ -16,8 +16,9 @@ class StudioModelTests(unittest.IsolatedAsyncioTestCase):
         available = {
             "diffusion_models": ["flux-2-klein-4b-fp8.safetensors", "flux-2-klein-9b-fp8.safetensors"],
             "text_encoders": ["qwen_3_4b.safetensors"],
+            "vae": ["flux2-vae.safetensors"],
         }
-        self.encoders = available["text_encoders"]
+        self.available = available
         modules = {
             "folder_paths": SimpleNamespace(get_output_directory=lambda: temp.name, get_filename_list=available.__getitem__),
             "server": SimpleNamespace(PromptServer=SimpleNamespace(instance=SimpleNamespace(routes=web.RouteTableDef()))),
@@ -27,8 +28,24 @@ class StudioModelTests(unittest.IsolatedAsyncioTestCase):
     def test_9b_requires_its_encoder_and_keeps_4b_first(self):
         installed = self.studio["installed_models"]
         self.assertEqual(list(installed()), ["fp8"])
-        self.encoders.append("qwen_3_8b_fp8mixed.safetensors")
+        self.available["text_encoders"].append("qwen_3_8b_fp8mixed.safetensors")
         self.assertEqual(list(installed()), ["fp8", "9b-fp8"])
+
+    def test_z_image_uses_its_own_decoder_and_eight_step_sampler(self):
+        key = "z-image-turbo"
+        self.available["diffusion_models"].append("z_image_turbo_bf16.safetensors")
+        self.assertNotIn(key, self.studio["installed_models"]())
+        self.available["vae"].append("ae.safetensors")
+        self.assertEqual(list(self.studio["installed_models"]()), ["fp8", key])
+        graph = self.studio["workflow"]("prairie", key, 1234, "test", external_session="session")
+        self.assertEqual(graph["2"]["inputs"]["type"], "lumina2")
+        self.assertEqual(graph["3"]["inputs"]["vae_name"], "ae.safetensors")
+        self.assertEqual(graph["5"]["class_type"], "EmptySD3LatentImage")
+        self.assertEqual(graph["6"]["inputs"]["shift"], 3.0)
+        sampler = graph["10"]["inputs"]
+        self.assertEqual((sampler["steps"], sampler["seed"], sampler["sampler_name"], sampler["scheduler"]),
+                         (8, 1234, "res_multistep", "simple"))
+        self.assertEqual(graph["12"]["inputs"]["session_id"], "session")
 
     def test_generate_and_edit_use_the_9b_checkpoint_and_encoder(self):
         for source in (None, "original.png"):
@@ -48,6 +65,7 @@ class StudioModelTests(unittest.IsolatedAsyncioTestCase):
         for index, (model_fields, expected) in enumerate([
             ({"model": "Klein 4B · FP8"}, "fp8"),
             ({"model": "Klein 9B · FP8", "model_id": "9b-fp8"}, "9b-fp8"),
+            ({"model": "Z-Image-Turbo · BF16", "model_id": "z-image-turbo"}, "fp8"),
         ]):
             with self.subTest(expected=expected):
                 filename = f"{index:032x}_00001_.png"
