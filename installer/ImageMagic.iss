@@ -1,4 +1,4 @@
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 
 [Setup]
 AppId=ImageMagic.Studio
@@ -25,19 +25,23 @@ CloseApplications=no
 [Files]
 Source: "..\setup.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\launch_studio.py"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Open ImageMagic.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\ImageMagic.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "ImageMagic.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\docs\WINDOWS-SETUP.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\custom_nodes\imagemagic_studio\*.py"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion
-Source: "..\custom_nodes\imagemagic_studio\*.html"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion
-Source: "..\custom_nodes\imagemagic_studio\style.css"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion
-Source: "..\custom_nodes\imagemagic_studio\favicon.svg"; DestDir: "{app}\custom_nodes\imagemagic_studio"; Flags: ignoreversion
+
+[InstallDelete]
+Type: files; Name: "{app}\Open ImageMagic.ps1"
+Type: files; Name: "{app}\custom_nodes\imagemagic_studio\studio.html"
+Type: files; Name: "{app}\custom_nodes\imagemagic_studio\sessions.html"
+Type: files; Name: "{app}\custom_nodes\imagemagic_studio\style.css"
+Type: files; Name: "{app}\custom_nodes\imagemagic_studio\favicon.svg"
 
 [Icons]
-Name: "{group}\ImageMagic"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File ""{app}\Open ImageMagic.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\ImageMagic.ico"
+Name: "{group}\ImageMagic"; Filename: "{app}\ImageMagic.exe"; WorkingDir: "{app}"
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File ""{app}\Open ImageMagic.ps1"""; WorkingDir: "{app}"; Description: "Open ImageMagic"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\ImageMagic.exe"; WorkingDir: "{app}"; Description: "Open ImageMagic"; Flags: nowait postinstall skipifsilent
 
 [Code]
 function StopInstalledStudio(Dir: String): String;
@@ -48,7 +52,7 @@ begin
   Result := '';
   Python := Dir + '\ComfyUI_windows_portable\python_embeded\python.exe';
   Launcher := Dir + '\launch_studio.py';
-  if FileExists(Dir + '\Open ImageMagic.ps1') and FileExists(Python) and FileExists(Launcher) then
+  if (FileExists(Dir + '\Open ImageMagic.ps1') or FileExists(Dir + '\ImageMagic.exe')) and FileExists(Python) and FileExists(Launcher) then
     if not Exec(Python, '-I "' + Launcher + '" --stop', Dir, SW_HIDE, ewWaitUntilTerminated, ExitCode)
        or (ExitCode <> 0) then
       Result := 'Could not stop this studio. Let queued jobs finish, then try again.';

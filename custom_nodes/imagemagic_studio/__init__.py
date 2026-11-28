@@ -8,7 +8,6 @@ import subprocess
 import time
 import uuid
 from functools import lru_cache
-from html import escape
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
@@ -127,24 +126,18 @@ def session_folder(session):
         raise web.HTTPConflict(text=str(error))
 
 
+def session_info(session):
+    return {"id": session.id, "name": session.name, "folder": str(session.folder),
+            "available": session.available()}
+
+
 @routes.get("/studio")
+@routes.get("/studio/api/sessions")
 async def studio(request):
     sessions = catalog.sessions()
     if next(iter_gallery_images(OUTPUT), None) or trash_snapshot(OUTPUT.resolve() / ".trash")[0]:
         sessions.append(catalog.get("previous"))
-    rows = []
-    for session in sessions:
-        name = escape(session.name)
-        if session.available():
-            rows.append(f'<li><a href="/studio/session/{session.id}"><span>{name}</span>'
-                        f'<span aria-hidden="true">→</span></a><button class="delete-link" '
-                        f'data-session="{session.id}" aria-label="Delete {name}" aria-haspopup="dialog">Delete</button></li>')
-        else:
-            rows.append(f'<li class="offline"><span>{name}</span>'
-                        f'<small>Folder unavailable · {escape(str(session.folder))}</small></li>')
-    contents = f'<ul class="session-list">{"".join(rows)}</ul>' if rows else '<p class="empty-list">No sessions yet.</p>'
-    page = (ROOT / "sessions.html").read_text(encoding="utf-8").replace("{{sessions}}", contents)
-    return web.Response(text=page, content_type="text/html", headers={"Cache-Control": "no-store"})
+    return web.json_response([session_info(session) for session in sessions])
 
 
 def session_name(name):
@@ -169,7 +162,6 @@ async def choose_folder(request):
     if picker_lock.locked():
         raise web.HTTPConflict(text="A folder chooser is already open.")
     async with picker_lock:
-        # The browser cannot supply an absolute Windows path from a directory upload.
         command = (
             "Add-Type -AssemblyName System.Windows.Forms; "
             "$d=New-Object Windows.Forms.FolderBrowserDialog; "
@@ -194,8 +186,10 @@ async def choose_folder(request):
 
 
 @routes.post("/studio/sessions")
+@routes.post("/studio/api/sessions")
 async def create_session(request):
-    form = await request.post()
+    native = request.path == "/studio/api/sessions"
+    form = await request.json() if native else await request.post()
     name = session_name(form.get("name"))
     destination = form.get("destination") or None
     if destination:
@@ -206,6 +200,8 @@ async def create_session(request):
         raise web.HTTPConflict(text="This folder already exists. Choose the location again for a new folder name.")
     except (OSError, ValueError) as error:
         raise web.HTTPBadRequest(text=f"Could not create the session folder. {error}")
+    if native:
+        return web.json_response(session_info(session), status=201)
     raise web.HTTPSeeOther(location=f"/studio/session/{session.id}")
 
 
@@ -213,18 +209,7 @@ async def create_session(request):
 async def open_session(request):
     session = find_session(request.match_info["session_id"])
     session_folder(session)
-    page = (ROOT / "studio.html").read_text(encoding="utf-8").replace("{{session_name}}", escape(session.name))
-    return web.Response(text=page, content_type="text/html", headers={"Cache-Control": "no-store"})
-
-
-@routes.get("/studio/style.css")
-async def stylesheet(request):
-    return web.FileResponse(ROOT / "style.css")
-
-
-@routes.get("/studio/favicon.svg")
-async def favicon(request):
-    return web.FileResponse(ROOT / "favicon.svg", headers={"Content-Type": "image/svg+xml"})
+    return web.json_response(session_info(session))
 
 
 @routes.get("/studio/api/models")

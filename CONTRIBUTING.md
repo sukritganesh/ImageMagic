@@ -12,7 +12,7 @@ After setup, run the tests from the repository root in PowerShell.
 .\ComfyUI_windows_portable\python_embeded\python.exe -m unittest discover -s tests
 ```
 
-Exercise the affected path before submitting. For a UI change, check the interaction in the browser, including keyboard navigation where relevant. For an installer change, check first-time setup and rerunning it. For documentation, verify commands and relative links. Run `git diff --check` and review the staged patch.
+Exercise the affected path before submitting. For a UI change, check the interaction in the desktop window, including keyboard navigation where relevant. For an installer change, check first-time setup and rerunning it. For documentation, verify commands and relative links. Run `git diff --check` and review the staged patch.
 
 ## Commits and pull requests
 
@@ -22,4 +22,4 @@ Open a PR against `main`. Describe what changed, why, and how you tested it. Inc
 
 ## Build a Windows release
 
-On Windows, install [Inno Setup](https://jrsoftware.org/inno-setup/downloads) (v1.0.0 was built with 7.1.1 x64). From the repository root run `ISCC.exe installer\ImageMagic.iss`, using the compiler's full path if needed. The installer is written to `dist\`. Build from the release commit, test that executable in a separate install folder, and attach it, its SHA-256 checksum, and [WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) to a draft release targeting the same commit.
+Run `.\desktop\build.ps1` to compile `ImageMagic.exe` with Windows’ built-in .NET Framework compiler. On Windows, install [Inno Setup](https://jrsoftware.org/inno-setup/downloads) (v1.0.0 was built with 7.1.1 x64). From the repository root run `ISCC.exe installer\ImageMagic.iss`, using the compiler's full path if needed. The installer is written to `dist\`. Build from the release commit, test that executable in a separate install folder, and attach it, its SHA-256 checksum, and [WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) to a draft release targeting the same commit.

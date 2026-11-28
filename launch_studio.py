@@ -1,4 +1,4 @@
-"""Start the local studio and open the prompt gallery."""
+"""Start the desktop studio or its per-installation inference service."""
 import errno
 import filecmp
 import json
@@ -10,7 +10,6 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-import webbrowser
 from pathlib import Path
 
 import psutil
@@ -22,6 +21,9 @@ PYTHON = PORTABLE / "python_embeded/python.exe"
 HOST = "127.0.0.1"
 DEFAULT_PORT = 8188
 LOG = ROOT / "studio.log"
+NODE_FILES = ("__init__.py", "storage.py", "session_nodes.py")
+SOURCE = ROOT / "custom_nodes/imagemagic_studio"
+INSTALLED = PORTABLE / "ComfyUI/custom_nodes/imagemagic_studio"
 
 
 def ready(port):
@@ -76,15 +78,16 @@ def port_available(port):
         return True
 
 
+def needs_update():
+    return any(not (INSTALLED / name).is_file() or
+               not filecmp.cmp(SOURCE / name, INSTALLED / name, shallow=False) for name in NODE_FILES)
+
+
 def start_studio():
-    source = ROOT / "custom_nodes" / "imagemagic_studio"
-    installed = PORTABLE / "ComfyUI" / "custom_nodes" / source.name
-    installed.mkdir(exist_ok=True)
-    for name in ("__init__.py", "storage.py", "session_nodes.py", "studio.html", "sessions.html", "style.css", "favicon.svg"):
-        dest = installed / name
-        if not dest.exists() or not filecmp.cmp(source / name, dest, shallow=False):
-            shutil.copyfile(source / name, dest)
-    print("Starting ImageMagic on your GPU…", flush=True)
+    INSTALLED.mkdir(exist_ok=True)
+    for name in NODE_FILES:
+        shutil.copyfile(SOURCE / name, INSTALLED / name)
+    print("Starting ImageMagic on your GPU...", flush=True)
     for port in range(DEFAULT_PORT, 65536):
         if not port_available(port):
             continue
@@ -112,16 +115,24 @@ def start_studio():
 
 
 def main():
+    if not {"--stop", "--server-only", "--no-browser"}.intersection(sys.argv):
+        desktop = ROOT / "ImageMagic.exe"
+        if not desktop.is_file():
+            subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "RemoteSigned",
+                            "-File", str(ROOT / "desktop/build.ps1")], check=True)
+        subprocess.Popen([str(desktop)], cwd=ROOT)
+        return
     # Serialize discovery and startup across installs, including simultaneous double-clicks.
     with FileLock(Path(tempfile.gettempdir()) / "ImageMagic-launcher.lock"):
         if "--stop" in sys.argv:
             stop_studio()
             return
-        port = running_port() or start_studio()
-    url = f"http://{HOST}:{port}/studio"
-    print(url, flush=True)
-    if "--no-browser" not in sys.argv:
-        webbrowser.open(url)
+        port = running_port()
+        if port and needs_update():
+            stop_studio()
+            port = None
+        port = port or start_studio()
+    print(port, flush=True)
 
 
 if __name__ == "__main__":

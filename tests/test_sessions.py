@@ -52,17 +52,14 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         for invalid in (-1, 2**53, True, "0"):
             self.assertEqual((await self.client.post(url, json={"prompt": "prairie", "seed": invalid})).status, 400)
 
-    async def test_home_and_session_link_to_the_served_favicon(self):
-        icon_path = "/studio/favicon.svg"
-        session = await self.create_session("Studio icons")
-        for page_path in ("/studio", f"/studio/session/{session}"):
-            page = await (await self.client.get(page_path)).text()
-            self.assertIn('rel="icon"', page)
-            self.assertIn(f'href="{icon_path}"', page)
-        icon = await self.client.get(icon_path)
-        self.assertEqual(icon.status, 200)
-        self.assertEqual(icon.content_type, "image/svg+xml")
-        self.assertIn("<svg ", await icon.text())
+    async def test_desktop_session_creation_matches_list_and_legacy_open(self):
+        response = await self.client.post("/studio/api/sessions", json={"name": "Studio"})
+        self.assertEqual(response.status, 201)
+        session = await response.json()
+        self.assertTrue(session["available"])
+        self.assertEqual(session["folder"], str(self.output / session["id"]))
+        self.assertEqual(await (await self.client.get("/studio/api/sessions")).json(), [session])
+        self.assertEqual(await (await self.client.get("/studio/session/" + session["id"])).json(), session)
 
     def save_png(self, folder, digit="a", **lineage):
         name = digit * 32 + "_00001_.png"
@@ -133,7 +130,7 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         offline = folder.with_name("disconnected")
         folder.rename(offline)
         self.assertEqual(self.studio["catalog"].suggest(parent, "Coast"), parent / "Coast (3)")
-        self.assertIn("Folder unavailable", await (await self.client.get("/studio")).text())
+        self.assertFalse((await (await self.client.get("/studio/api/sessions")).json())[0]["available"])
         self.assertEqual((await self.client.post("/studio/api/generate", json={"session":sid, "prompt":"A boat"})).status, 409)
         self.assertFalse(folder.exists())
         folder.mkdir()
@@ -228,14 +225,14 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(folder.exists())
 
     async def test_home_lists_named_sessions_and_preserves_the_previous_gallery(self):
-        self.assertIn("No sessions yet.", await (await self.client.get("/studio")).text())
+        self.assertEqual(await (await self.client.get("/studio/api/sessions")).json(), [])
         name = self.save_png(self.output)
         session = await self.create_session(" Sky & sea ")
         home = await (await self.client.get("/studio")).text()
         self.assertIn("Previous images", home)
-        self.assertIn(f'/studio/session/{session}', home)
+        self.assertIn(session, home)
         page = await (await self.client.get(f"/studio/session/{session}")).text()
-        self.assertIn("<h1>Sky &amp; sea</h1>", page)
+        self.assertEqual(json.loads(page)["name"], "Sky & sea")
         for query in ("", "?session=previous"):
             items = await (await self.client.get("/studio/api/gallery" + query)).json()
             self.assertEqual([(item["file"], item["subfolder"]) for item in items], [(name, "ImageMagic")])
