@@ -5,7 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 
 @unittest.skipUnless(sys.platform == "win32", "The launcher uses the Windows portable runtime")
@@ -37,6 +37,24 @@ class LauncherTests(unittest.TestCase):
             port = listener.getsockname()[1]
             self.assertFalse(available(port))
         self.assertTrue(available(port))
+
+    def test_default_opens_desktop_and_server_only_reuses_the_backend(self):
+        main = self.launcher["main"]
+        with patch.object(sys, "argv", ["launch_studio.py"]), patch("pathlib.Path.is_file", return_value=True), \
+             patch("subprocess.Popen") as open_window:
+            main()
+            self.assertEqual(open_window.call_args.args[0], [str(self.launcher["ROOT"] / "ImageMagic.exe")])
+        start, stop = Mock(return_value=8190), Mock()
+        with patch.object(sys, "argv", ["launch_studio.py", "--server-only"]), \
+             patch.dict(main.__globals__, FileLock=MagicMock(), running_port=lambda: 8189, start_studio=start,
+                        stop_studio=stop, needs_update=lambda: False), patch("builtins.print") as report:
+            main()
+            report.assert_called_with(8189, flush=True)
+            start.assert_not_called()
+            with patch.dict(main.__globals__, needs_update=lambda: True):
+                main()
+            stop.assert_called_once()
+            report.assert_called_with(8190, flush=True)
 
     def test_maintenance_stops_only_the_idle_server_for_this_installation(self):
         stop = self.launcher["stop_studio"]

@@ -1,18 +1,18 @@
 # ImageMagic
 
-ImageMagic is a local image generation and editing studio for Windows. Type a prompt to generate a 1024 × 1024 image with FLUX.2 Klein 4B. The three-column gallery keeps the original and its edits together. ComfyUI runs inference on your machine.
+ImageMagic is a native Windows desktop app for local image generation and editing. Type a prompt to generate a 1024 × 1024 image with FLUX.2 Klein 4B. The three-column gallery keeps the original and its edits together. ComfyUI runs inference on your machine.
 
-The home page lists your sessions. Enter a name and choose **Create session**, or open an existing session to return to its gallery. Use **All sessions** to go back. You can bookmark a session or open several in separate tabs.
+The home page lists your sessions. Enter a name and choose **Create session**, or open an existing session to return to its gallery. Use **All sessions** to go back. Use **Full screen** or **F11** to toggle fullscreen. **Esc** closes the current image or dialog first, then exits fullscreen.
 
-With the current source version, you can also choose **Choose folder…** before creating a session. Select a parent folder in the Windows dialog. The form shows the new session folder it will create there (for example, `D:\Artwork\Coast`). If that name is taken, it suggests `Coast (2)`. Choose **Use default** to save in the usual gallery. Originals, edits, and that session’s trash use the selected location. If a drive is disconnected, reconnect it at the same path to reopen the session.
+Choose **Choose folder…** before creating a session. Select a parent folder in the Windows dialog. The form shows the new session folder it will create there (for example, `D:\Artwork\Coast`). If that name is taken, it suggests `Coast (2)`. Choose **Use default** to save in the usual gallery. Originals, edits, and that session’s trash use the selected location. If a drive is disconnected, reconnect it at the same path to reopen the session.
 
 Choose **Delete** beside a session to review its image count. Each original and each saved edit counts as one image. The confirmation also shows how many more images are in that session’s trash. Choose **Delete permanently** to remove the session and both sets of images.
 
-The first time you open the updated studio, it registers existing named sessions in its local SQLite catalog. Their folders and bookmark URLs stay the same. Images created before named sessions still appear under **Previous images**.
+The first time you open the updated studio, it registers existing named sessions in its local SQLite catalog. Their images and save locations stay the same. Images created before named sessions still appear under **Previous images**.
 
 ## Install and run
 
-**Windows installer:** Download **ImageMagic-Setup-1.0.0.exe** from the [GitHub releases](https://github.com/sukritganesh/ImageMagic/releases), run it, and open **ImageMagic** from Start. Press **Enter** to download the default models and open the studio. Allow 25 GB of free space. See the [Windows setup guide](docs/WINDOWS-SETUP.md) for first-run instructions, optional models, and uninstall behavior.
+**Windows installer:** Download **ImageMagic-Setup-1.1.0.exe** from the [GitHub releases](https://github.com/sukritganesh/ImageMagic/releases), run it, and open **ImageMagic** from Start. Choose **Download and start** on first launch to install the default models. To upgrade v1.0.0, close the studio and run the installer in the same folder. Allow 25 GB of free space. See the [Windows setup guide](docs/WINDOWS-SETUP.md) for first-run instructions, optional models, and uninstall behavior.
 
 ### Install from source
 
@@ -29,7 +29,7 @@ cd ImageMagic
 
 The default setup downloads about 14.5 GB, including the archive, encoder, decoder, and fast FP8 checkpoint. Allow additional disk space for the extracted runtime and your gallery. Setup verifies SHA-256 checksums and reuses existing files. Run `.\setup.ps1 -AllModels` to add Compact and Base (about 6.6 GB more). If PowerShell blocks the downloaded setup script, review it and use `Unblock-File .\setup.ps1` where your execution policy permits local scripts.
 
-Double-click **Start ImageMagic.cmd** to start or reopen this installation. The launcher uses port 8188 by default, then tries 8189, 8190, and so on if needed. If this installation is already running, the launcher reopens its current port even if a lower port has since become available. It opens the selected URL in your browser and writes startup diagnostics to `studio.log`.
+Double-click **Start ImageMagic.cmd** to start or reopen this installation. The launcher uses port 8188 by default, then tries 8189, 8190, and so on if needed. If this installation is already running, the launcher reopens its current port even if a lower port has since become available. The desktop window connects to that service over loopback. Opening the launcher again brings the same window forward. Closing the window lets queued jobs finish in the background. Startup diagnostics are in `studio.log`.
 
 ### Add Klein 9B FP8
 
@@ -41,11 +41,11 @@ After the default setup, run the optional installer from the repository root. It
 .\setup.ps1 -Klein9B
 ```
 
-If you prefer to download in your browser, save `flux-2-klein-9b-fp8.safetensors` from the model page to `ComfyUI_windows_portable/ComfyUI/models/diffusion_models/` and run `.\setup.ps1 -Klein9B`. Setup verifies that file and downloads the encoder. Refresh the studio to select **Klein 9B · FP8**.
+If you prefer to download in your browser, save `flux-2-klein-9b-fp8.safetensors` from the model page to `ComfyUI_windows_portable/ComfyUI/models/diffusion_models/` and run `.\setup.ps1 -Klein9B`. Setup verifies that file and downloads the encoder. Reopen the session to select **Klein 9B · FP8**.
 
 ### Add Z-Image-Turbo
 
-From the source checkout, run `.\setup.ps1 -ZImageTurbo` and refresh the studio. Choose **Z-Image-Turbo · BF16** to generate 1024 × 1024 images in eight steps. The setup reuses Klein’s Qwen encoder and downloads about 12.6 GB for the checkpoint and decoder. Instruction edits of these images use Klein 4B FP8. [ComfyUI workflow](https://docs.comfy.org/tutorials/image/z-image/z-image-turbo)
+From the source or install folder, run `.\setup.ps1 -ZImageTurbo` and reopen the session. Choose **Z-Image-Turbo · BF16** to generate 1024 × 1024 images in eight steps. The setup reuses Klein’s Qwen encoder and downloads about 12.6 GB for the checkpoint and decoder. Instruction edits of these images use Klein 4B FP8. [ComfyUI workflow](https://docs.comfy.org/tutorials/image/z-image/z-image-turbo)
 
 ## Use the gallery
 
@@ -59,10 +59,10 @@ From the source checkout, run `.\setup.ps1 -ZImageTurbo` and refresh the studio.
 
 ## Project layout
 
-- [sessions.html](custom_nodes/imagemagic_studio/sessions.html) — session list and creation form.
-- [studio.html](custom_nodes/imagemagic_studio/studio.html) — prompt editor, gallery, and image viewer.
+- [desktop/](desktop/) — native Windows app, session list, gallery, fullscreen viewer, and build script.
+- [launch_studio.py](launch_studio.py) — starts or reuses the local inference service for each installation.
 - [storage.py](custom_nodes/imagemagic_studio/storage.py) — SQLite session catalog and save locations.
 
-The launcher copies the studio files into the portable installation when starting the server. Restart the local ComfyUI process after changing the source. For contributor conventions, see [CONTRIBUTING.md](CONTRIBUTING.md).
+The source launcher compiles the desktop executable with the .NET Framework compiler included in Windows 11. Close the window before rebuilding. It updates the portable service when its Python files change. For contributor conventions, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Setup downloads third-party software and model weights directly from their publishers. Their respective licenses apply. [ComfyUI release](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.46.0) · [FLUX.2 Klein 4B model card](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) · [ComfyUI encoder and VAE](https://huggingface.co/Comfy-Org/Flux-2-Klein-4B)
